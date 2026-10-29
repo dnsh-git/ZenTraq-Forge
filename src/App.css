@@ -194,3 +194,19 @@ h2 { margin: 0; font: 600 19px 'Space Grotesk', sans-serif; }
   .stat-value { font-size: 23px; }
   .page-footer { flex-direction: column; }
 }
+
+.chart-today {
+  color: #c4f36b;
+  font-weight: 700;
+}
+
+.chart-count {
+  min-height: 10px;
+  color: #c4f36b;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.chart-column {
+  gap: 5px;
+}
