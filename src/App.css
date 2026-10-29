@@ -378,3 +378,37 @@ h2 { margin: 0; font: 600 19px 'Space Grotesk', sans-serif; }
     font-size: 9px;
   }
 }
+
+.record-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.record-actions button {
+  padding: 6px 8px;
+  border: 1px solid #343b33;
+  border-radius: 5px;
+  background: transparent;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.record-edit {
+  color: #c4f36b;
+}
+
+.record-delete {
+  color: #e9958d;
+}
+
+.record-actions button:hover {
+  border-color: #c4f36b;
+}
+
+@media (max-width: 760px) {
+  .record-actions {
+    grid-column: 2 / -1;
+    justify-content: flex-start;
+  }
+}
