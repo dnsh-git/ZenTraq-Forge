@@ -28,6 +28,7 @@ function getWeekDays() {
   return DAY_NAMES.map((day, index) => {
     const date = new Date(monday)
     date.setDate(monday.getDate() + index)
+
     return {
       day,
       dateKey: localDateKey(date),
@@ -48,6 +49,7 @@ function getWorkoutDateKey(workout) {
     Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
     Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
   }
+
   const month = months[match[2]]
   if (month === undefined) return null
 
@@ -55,7 +57,10 @@ function getWorkoutDateKey(workout) {
   let year = now.getFullYear()
   const parsed = new Date(year, month, Number(match[1]))
 
-  if (parsed > now && month === 11 && now.getMonth() === 0) year -= 1
+  if (parsed > now && month === 11 && now.getMonth() === 0) {
+    year -= 1
+  }
+
   return localDateKey(new Date(year, month, Number(match[1])))
 }
 
@@ -81,7 +86,6 @@ function loadWorkouts() {
 function App() {
   const [workouts, setWorkouts] = useState(loadWorkouts)
   const [showLogger, setShowLogger] = useState(false)
-  const [editingId, setEditingId] = useState(null)
   const [workoutName, setWorkoutName] = useState('')
   const [duration, setDuration] = useState('45')
   const [exercises, setExercises] = useState([emptyExercise()])
@@ -98,7 +102,8 @@ function App() {
   )
 
   const totalVolume = realWorkouts.reduce(
-    (total, workout) => total + (Number(workout.volume.replace(/[^0-9.]/g, '')) || 0),
+    (total, workout) =>
+      total + (Number(workout.volume.replace(/[^0-9.]/g, '')) || 0),
     0,
   )
 
@@ -114,6 +119,7 @@ function App() {
   const filteredWorkouts = workouts
     .filter((workout) => {
       const query = searchTerm.trim().toLowerCase()
+
       const matchesSearch =
         !query ||
         workout.name.toLowerCase().includes(query) ||
@@ -125,19 +131,25 @@ function App() {
       const dateKey = getWorkoutDateKey(workout)
       const today = localDateKey()
       const weekStart = getWeekDays()[0].dateKey
+
       let matchesDate = true
 
-      if (historyFilter === 'today') matchesDate = dateKey === today
-      else if (historyFilter === 'week') {
+      if (historyFilter === 'today') {
+        matchesDate = dateKey === today
+      } else if (historyFilter === 'week') {
         matchesDate = Boolean(dateKey && dateKey >= weekStart && dateKey <= today)
-      } else if (historyFilter === 'saved') matchesDate = !workout.sample
-      else if (historyFilter === 'demo') matchesDate = Boolean(workout.sample)
+      } else if (historyFilter === 'saved') {
+        matchesDate = !workout.sample
+      } else if (historyFilter === 'demo') {
+        matchesDate = Boolean(workout.sample)
+      }
 
       return matchesSearch && matchesDate
     })
     .sort((a, b) => {
       const dateA = getWorkoutDateKey(a) || ''
       const dateB = getWorkoutDateKey(b) || ''
+
       if (sortOrder === 'oldest') return dateA.localeCompare(dateB)
       if (sortOrder === 'name') return a.name.localeCompare(b.name)
       return dateB.localeCompare(dateA)
@@ -152,28 +164,9 @@ function App() {
   }
 
   function openLogger() {
-    setEditingId(null)
     setWorkoutName('')
     setDuration('45')
     setExercises([emptyExercise()])
-    setNotice('')
-    setShowLogger(true)
-  }
-
-  function openEditor(workout) {
-    setEditingId(workout.id)
-    setWorkoutName(workout.name)
-    setDuration(String(Number.parseInt(workout.duration, 10) || 45))
-    setExercises(
-      workout.exercises?.length
-        ? workout.exercises.map((exercise) => ({
-            ...exercise,
-            sets: String(exercise.sets),
-            reps: String(exercise.reps),
-            weight: String(exercise.weight),
-          }))
-        : [emptyExercise()],
-    )
     setNotice('')
     setShowLogger(true)
   }
@@ -217,63 +210,44 @@ function App() {
     }
 
     const volume = validExercises.reduce(
-      (total, exercise) => total + exercise.sets * exercise.reps * exercise.weight,
+      (total, exercise) =>
+        total + exercise.sets * exercise.reps * exercise.weight,
       0,
     )
 
-    const existingWorkout = workouts.find((workout) => workout.id === editingId)
     const today = new Date()
 
-    const savedWorkout = {
-      id: editingId || crypto.randomUUID(),
+    const newWorkout = {
+      id: crypto.randomUUID(),
       name,
       detail: `${validExercises.length} exercise${validExercises.length === 1 ? '' : 's'}`,
-      date: existingWorkout?.date || today.toLocaleDateString('en-IN', {
+      date: today.toLocaleDateString('en-IN', {
         day: 'numeric',
         month: 'short',
       }),
-      dateISO: existingWorkout?.dateISO || localDateKey(today),
+      dateISO: localDateKey(today),
       duration: `${minutes} min`,
       volume: `${volume.toLocaleString('en-IN')} kg`,
       exercises: validExercises,
       sample: false,
     }
 
-    const updated = editingId
-      ? workouts.map((workout) => workout.id === editingId ? savedWorkout : workout)
-      : [savedWorkout, ...realWorkouts]
+    const updated = [newWorkout, ...realWorkouts]
 
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
       setWorkouts(updated)
       setShowLogger(false)
-      setEditingId(null)
       setNotice('')
     } catch {
       setNotice('Could not save. Check your browser storage settings.')
     }
   }
 
-  function deleteWorkout(workout) {
-    if (workout.sample) {
-      window.alert('Demo workouts cannot be deleted. You can delete your saved workouts.')
+  function clearWorkouts() {
+    if (!window.confirm('Delete all your saved workouts? This cannot be undone.')) {
       return
     }
-
-    if (!window.confirm(`Delete "${workout.name}"? This cannot be undone.`)) return
-
-    const updated = workouts.filter((item) => item.id !== workout.id)
-
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
-      setWorkouts(updated)
-    } catch {
-      setNotice('Could not delete this workout.')
-    }
-  }
-
-  function clearWorkouts() {
-    if (!window.confirm('Delete all your saved workouts? This cannot be undone.')) return
 
     try {
       localStorage.removeItem(STORAGE_KEY)
@@ -290,6 +264,7 @@ function App() {
           <span className="brand-mark">Z</span>
           <span>ZENTRAQ<span className="brand-light">FORGE</span></span>
         </a>
+
         <div className="nav-label">WORKSPACE</div>
         <nav className="navigation">
           <a className="nav-item active" href="#dashboard"><span>▦</span> Dashboard</a>
@@ -297,6 +272,7 @@ function App() {
           <a className="nav-item" href="#progress"><span>↗</span> Progress</a>
           <a className="nav-item" href="#history"><span>◷</span> History</a>
         </nav>
+
         <div className="sidebar-bottom">
           <div className="sidebar-plan">
             <span className="plan-icon">✳</span>
@@ -326,7 +302,9 @@ function App() {
               <h1>Build strength.<br /><span>Track progress.</span></h1>
               <p className="welcome-copy">Every session counts. Here's how your training is going.</p>
             </div>
-            <button className="primary-button" onClick={openLogger} type="button"><span>＋</span> Log a workout</button>
+            <button className="primary-button" onClick={openLogger} type="button">
+              <span>＋</span> Log a workout
+            </button>
           </section>
 
           <section className="stats-grid">
@@ -399,7 +377,9 @@ function App() {
               <div><p className="panel-kicker">YOUR TRAINING LOG</p><h2>Recent workouts</h2></div>
               <div className="workout-actions">
                 <a href="#history" className="secondary-button">View history <span>→</span></a>
-                {realWorkouts.length > 0 && <button className="clear-button" type="button" onClick={clearWorkouts}>Clear saved</button>}
+                {realWorkouts.length > 0 && (
+                  <button className="clear-button" type="button" onClick={clearWorkouts}>Clear saved</button>
+                )}
               </div>
             </div>
 
@@ -412,15 +392,25 @@ function App() {
                 onChange={(event) => setSearchTerm(event.target.value)}
                 aria-label="Search workouts or exercises"
               />
+
               <div className="history-selects">
-                <select value={historyFilter} onChange={(event) => setHistoryFilter(event.target.value)} aria-label="Filter workouts">
+                <select
+                  value={historyFilter}
+                  onChange={(event) => setHistoryFilter(event.target.value)}
+                  aria-label="Filter workouts"
+                >
                   <option value="all">All workouts</option>
                   <option value="saved">My workouts</option>
                   <option value="today">Today</option>
                   <option value="week">This week</option>
                   <option value="demo">Demo workouts</option>
                 </select>
-                <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} aria-label="Sort workouts">
+
+                <select
+                  value={sortOrder}
+                  onChange={(event) => setSortOrder(event.target.value)}
+                  aria-label="Sort workouts"
+                >
                   <option value="newest">Newest first</option>
                   <option value="oldest">Oldest first</option>
                   <option value="name">Name A–Z</option>
@@ -428,19 +418,33 @@ function App() {
               </div>
             </div>
 
-            <p className="history-result-count">Showing {filteredWorkouts.length} of {workouts.length} workouts</p>
+            <p className="history-result-count">
+              Showing {filteredWorkouts.length} of {workouts.length} workouts
+            </p>
 
             {filteredWorkouts.length === 0 ? (
               <div className="empty-state">
-                <span>◈</span><strong>No matching workouts</strong>
+                <span>◈</span>
+                <strong>No matching workouts</strong>
                 <p>Try a different search or filter, or log a new session.</p>
-                <button className="secondary-button" onClick={() => { setSearchTerm(''); setHistoryFilter('all') }} type="button">Clear filters</button>
+                <button
+                  className="secondary-button"
+                  onClick={() => {
+                    setSearchTerm('')
+                    setHistoryFilter('all')
+                  }}
+                  type="button"
+                >
+                  Clear filters
+                </button>
               </div>
             ) : (
               <div className="workout-list">
                 {filteredWorkouts.map((workout, index) => (
                   <article className="workout-row" key={workout.id}>
-                    <div className={`workout-symbol symbol-${(index % 3) + 1}`}>{['↗', '◈', '⌁'][index % 3]}</div>
+                    <div className={`workout-symbol symbol-${(index % 3) + 1}`}>
+                      {['↗', '◈', '⌁'][index % 3]}
+                    </div>
                     <div className="workout-description">
                       <strong>{workout.name}</strong>
                       <span>{workout.detail}</span>
@@ -448,21 +452,21 @@ function App() {
                         <details className="exercise-details">
                           <summary>View {workout.exercises.length} exercises</summary>
                           {workout.exercises.map((exercise) => (
-                            <p key={exercise.id}>{exercise.name}: {exercise.sets} × {exercise.reps} × {exercise.weight} kg</p>
+                            <p key={exercise.id}>
+                              {exercise.name}: {exercise.sets} × {exercise.reps} × {exercise.weight} kg
+                            </p>
                           ))}
                         </details>
                       )}
                     </div>
                     <div className="workout-date">{workout.date}</div>
-                    <div className="workout-metric"><strong>{workout.duration}</strong><span>Duration</span></div>
-                    <div className="workout-metric volume-metric"><strong>{workout.volume}</strong><span>Volume</span></div>
-                    {!workout.sample && (
-                      <div className="record-actions">
-                        <button className="record-edit" type="button" onClick={() => openEditor(workout)}>Edit</button>
-                        <button className="record-delete" type="button" onClick={() => deleteWorkout(workout)}>Delete</button>
-                      </div>
-                    )}
-                    {workout.sample && <span className="row-arrow">•</span>}
+                    <div className="workout-metric">
+                      <strong>{workout.duration}</strong><span>Duration</span>
+                    </div>
+                    <div className="workout-metric volume-metric">
+                      <strong>{workout.volume}</strong><span>Volume</span>
+                    </div>
+                    <span className="row-arrow">{workout.sample ? '•' : '✓'}</span>
                   </article>
                 ))}
               </div>
@@ -483,60 +487,136 @@ function App() {
 
         {showLogger && (
           <div className="modal-overlay" onClick={() => setShowLogger(false)}>
-            <section className="logger-modal" role="dialog" aria-modal="true" aria-labelledby="logger-title" onClick={(event) => event.stopPropagation()}>
+            <section
+              className="logger-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="logger-title"
+              onClick={(event) => event.stopPropagation()}
+            >
               <div className="modal-heading">
-                <div>
-                  <p className="panel-kicker">TRAINING LOG</p>
-                  <h2 id="logger-title">{editingId ? 'Edit workout' : 'Log a workout'}</h2>
-                </div>
+                <div><p className="panel-kicker">TRAINING LOG</p><h2 id="logger-title">Log a workout</h2></div>
                 <button className="close-button" type="button" onClick={() => setShowLogger(false)} aria-label="Close">×</button>
               </div>
 
               <form onSubmit={saveWorkout}>
                 <label htmlFor="workout-name">Workout name</label>
-                <input id="workout-name" value={workoutName} onChange={(event) => setWorkoutName(event.target.value)} placeholder="e.g. Push Day" maxLength={60} required />
+                <input
+                  id="workout-name"
+                  value={workoutName}
+                  onChange={(event) => setWorkoutName(event.target.value)}
+                  placeholder="e.g. Push Day"
+                  maxLength={60}
+                  required
+                  autoFocus
+                />
 
                 <label htmlFor="workout-duration">Duration (minutes)</label>
-                <input id="workout-duration" type="number" min="1" max="1440" value={duration} onChange={(event) => setDuration(event.target.value)} required />
+                <input
+                  id="workout-duration"
+                  type="number"
+                  min="1"
+                  max="1440"
+                  value={duration}
+                  onChange={(event) => setDuration(event.target.value)}
+                  required
+                />
 
-                <div className="exercise-form-heading"><h3>Exercises</h3><span>{exercises.length} added</span></div>
+                <div className="exercise-form-heading">
+                  <h3>Exercises</h3><span>{exercises.length} added</span>
+                </div>
 
                 {exercises.map((exercise, index) => (
                   <fieldset className="exercise-form-card" key={exercise.id}>
                     <div className="exercise-card-heading">
                       <legend>Exercise {index + 1}</legend>
                       {exercises.length > 1 && (
-                        <button className="remove-exercise" type="button" onClick={() => setExercises((current) => current.filter((item) => item.id !== exercise.id))}>Remove</button>
+                        <button
+                          className="remove-exercise"
+                          type="button"
+                          onClick={() => setExercises((current) => current.filter((item) => item.id !== exercise.id))}
+                        >
+                          Remove
+                        </button>
                       )}
                     </div>
+
                     <label htmlFor={`exercise-name-${exercise.id}`}>Exercise name</label>
-                    <input id={`exercise-name-${exercise.id}`} value={exercise.name} onChange={(event) => updateExercise(exercise.id, 'name', event.target.value)} placeholder="e.g. Bench Press" maxLength={60} required />
+                    <input
+                      id={`exercise-name-${exercise.id}`}
+                      value={exercise.name}
+                      onChange={(event) => updateExercise(exercise.id, 'name', event.target.value)}
+                      placeholder="e.g. Bench Press"
+                      maxLength={60}
+                      required
+                    />
 
                     <div className="exercise-number-grid">
                       <div>
                         <label htmlFor={`sets-${exercise.id}`}>Sets</label>
-                        <input id={`sets-${exercise.id}`} type="number" min="1" max="100" value={exercise.sets} onChange={(event) => updateExercise(exercise.id, 'sets', event.target.value)} required />
+                        <input
+                          id={`sets-${exercise.id}`}
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={exercise.sets}
+                          onChange={(event) => updateExercise(exercise.id, 'sets', event.target.value)}
+                          required
+                        />
                       </div>
                       <div>
                         <label htmlFor={`reps-${exercise.id}`}>Reps</label>
-                        <input id={`reps-${exercise.id}`} type="number" min="1" max="1000" value={exercise.reps} onChange={(event) => updateExercise(exercise.id, 'reps', event.target.value)} required />
+                        <input
+                          id={`reps-${exercise.id}`}
+                          type="number"
+                          min="1"
+                          max="1000"
+                          value={exercise.reps}
+                          onChange={(event) => updateExercise(exercise.id, 'reps', event.target.value)}
+                          required
+                        />
                       </div>
                       <div>
                         <label htmlFor={`weight-${exercise.id}`}>Weight (kg)</label>
-                        <input id={`weight-${exercise.id}`} type="number" min="0" max="10000" step="0.5" value={exercise.weight} onChange={(event) => updateExercise(exercise.id, 'weight', event.target.value)} required />
+                        <input
+                          id={`weight-${exercise.id}`}
+                          type="number"
+                          min="0"
+                          max="10000"
+                          step="0.5"
+                          value={exercise.weight}
+                          onChange={(event) => updateExercise(exercise.id, 'weight', event.target.value)}
+                          required
+                        />
                       </div>
                     </div>
                   </fieldset>
                 ))}
 
-                <button className="add-exercise-button" type="button" onClick={() => setExercises((current) => [...current, emptyExercise()])}>＋ Add another exercise</button>
+                <button
+                  className="add-exercise-button"
+                  type="button"
+                  onClick={() => setExercises((current) => [...current, emptyExercise()])}
+                >
+                  ＋ Add another exercise
+                </button>
 
                 <p className="volume-preview">
-                  Volume preview: {exercises.reduce((sum, exercise) => sum + (Number(exercise.sets) || 0) * (Number(exercise.reps) || 0) * (Number(exercise.weight) || 0), 0).toLocaleString('en-IN')} kg
+                  Volume preview: {exercises.reduce(
+                    (sum, exercise) =>
+                      sum +
+                      (Number(exercise.sets) || 0) *
+                      (Number(exercise.reps) || 0) *
+                      (Number(exercise.weight) || 0),
+                    0,
+                  ).toLocaleString('en-IN')} kg
                 </p>
 
                 {notice && <p className="form-notice" role="alert">{notice}</p>}
-                <button className="primary-button save-workout" type="submit">{editingId ? 'Save changes' : 'Save workout'}</button>
+
+                <button className="primary-button save-workout" type="submit">
+                  Save workout
+                </button>
               </form>
             </section>
           </div>
