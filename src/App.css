@@ -305,3 +305,76 @@ h2 { margin: 0; font: 600 19px 'Space Grotesk', sans-serif; }
     justify-content: flex-start;
   }
 }
+
+.volume-progress-panel {
+  min-width: 0;
+}
+
+.volume-progress-chart {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  gap: 12px;
+  min-height: 190px;
+  padding-top: 18px;
+}
+
+.volume-progress-column {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  height: 190px;
+}
+
+.volume-progress-column strong {
+  font-size: 10px;
+  color: #dce7d2;
+  white-space: nowrap;
+}
+
+.volume-progress-track {
+  height: 135px;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: #1b2119;
+  border-radius: 5px;
+  overflow: hidden;
+  margin-top: auto;
+}
+
+.volume-progress-bar {
+  width: 65%;
+  min-height: 4px;
+  background: #c4f36b;
+  border-radius: 5px 5px 0 0;
+  transition: height 0.3s ease;
+}
+
+.volume-progress-column > span {
+  color: #899184;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.progress-empty {
+  padding: 35px 10px;
+  text-align: center;
+  color: #899184;
+  font-size: 13px;
+}
+
+@media (max-width: 480px) {
+  .volume-progress-chart {
+    gap: 6px;
+  }
+
+  .volume-progress-column strong,
+  .volume-progress-column > span {
+    font-size: 9px;
+  }
+}
