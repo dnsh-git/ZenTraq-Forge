@@ -103,7 +103,7 @@ function App() {
 
   const totalVolume = realWorkouts.reduce(
     (total, workout) =>
-      total + (Number(workout.volume.replace(/[^0-9.]/g, '')) || 0),
+      total + (Number(String(workout.volume || '').replace(/[^0-9.]/g, '')) || 0),
     0,
   )
 
@@ -115,6 +115,25 @@ function App() {
   }))
 
   const maxActivity = Math.max(1, ...weeklyActivity.map((day) => day.count))
+
+  // NEW: Prepare the seven most recent saved workouts for the volume chart.
+  const volumeProgress = realWorkouts
+    .slice()
+    .sort((a, b) =>
+      (getWorkoutDateKey(a) || '').localeCompare(getWorkoutDateKey(b) || ''),
+    )
+    .slice(-7)
+    .map((workout) => ({
+      id: workout.id,
+      name: workout.name,
+      date: workout.date,
+      volume: Number(String(workout.volume || '').replace(/[^0-9.]/g, '')) || 0,
+    }))
+
+  const maxVolumeProgress = Math.max(
+    1,
+    ...volumeProgress.map((workout) => workout.volume),
+  )
 
   const filteredWorkouts = workouts
     .filter((workout) => {
@@ -358,6 +377,37 @@ function App() {
                 ))}
               </div>
               <div className="chart-footer"><span className="legend-dot" /> Your saved workouts by day</div>
+            </article>
+
+            {/* NEW: Real saved-workout volume chart */}
+            <article className="panel volume-progress-panel">
+              <div className="panel-heading">
+                <div><p className="panel-kicker">STRENGTH TRENDS</p><h2>Volume progress</h2></div>
+                <span className="period-badge">Last 7 workouts</span>
+              </div>
+              {volumeProgress.length === 0 ? (
+                <div className="progress-empty">Log your first workout to see your volume progress.</div>
+              ) : (
+                <div className="volume-progress-chart">
+                  {volumeProgress.map((workout) => (
+                    <div
+                      className="volume-progress-column"
+                      key={workout.id}
+                      title={`${workout.name}: ${workout.volume.toLocaleString('en-IN')} kg`}
+                    >
+                      <strong>{workout.volume >= 1000 ? `${(workout.volume / 1000).toFixed(1)}k` : workout.volume.toLocaleString('en-IN')}</strong>
+                      <div className="volume-progress-track">
+                        <div
+                          className="volume-progress-bar"
+                          style={{ height: `${Math.max(4, (workout.volume / maxVolumeProgress) * 100)}%` }}
+                        />
+                      </div>
+                      <span>{workout.date}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="chart-footer"><span className="legend-dot" /> Total lifted volume per workout</div>
             </article>
 
             <article className="panel focus-panel">
