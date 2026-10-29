@@ -64,6 +64,37 @@ function getWorkoutDateKey(workout) {
   return localDateKey(new Date(year, month, Number(match[1])))
 }
 
+// NEW: Calculate consecutive training days from saved workout dates.
+function calculateStreak(workouts) {
+  const workoutDays = new Set(
+    workouts
+      .map(getWorkoutDateKey)
+      .filter(Boolean),
+  )
+
+  const today = new Date()
+  const todayKey = localDateKey(today)
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const yesterdayKey = localDateKey(yesterday)
+
+  if (!workoutDays.has(todayKey) && !workoutDays.has(yesterdayKey)) {
+    return 0
+  }
+
+  let streak = 0
+  const currentDay = new Date(
+    workoutDays.has(todayKey) ? today : yesterday,
+  )
+
+  while (workoutDays.has(localDateKey(currentDay))) {
+    streak += 1
+    currentDay.setDate(currentDay.getDate() - 1)
+  }
+
+  return streak
+}
+
 function emptyExercise() {
   return {
     id: crypto.randomUUID(),
@@ -107,6 +138,8 @@ function App() {
     0,
   )
 
+  const currentStreak = calculateStreak(realWorkouts)
+
   const weeklyActivity = getWeekDays().map((day) => ({
     ...day,
     count: realWorkouts.filter(
@@ -116,7 +149,6 @@ function App() {
 
   const maxActivity = Math.max(1, ...weeklyActivity.map((day) => day.count))
 
-  // NEW: Prepare the seven most recent saved workouts for the volume chart.
   const volumeProgress = realWorkouts
     .slice()
     .sort((a, b) =>
@@ -344,8 +376,10 @@ function App() {
             </article>
             <article className="stat-card highlight-stat">
               <div className="stat-top"><span>Current streak</span><span className="stat-icon">✳</span></div>
-              <div className="stat-value">— <span className="stat-unit">days</span></div>
-              <div className="stat-foot"><span>Streak tracking coming later</span></div>
+              <div className="stat-value">{currentStreak} <span className="stat-unit">days</span></div>
+              <div className="stat-foot">
+                <span>{currentStreak > 0 ? 'Keep your momentum going' : 'Log a workout to start your streak'}</span>
+              </div>
             </article>
           </section>
 
@@ -379,7 +413,6 @@ function App() {
               <div className="chart-footer"><span className="legend-dot" /> Your saved workouts by day</div>
             </article>
 
-            {/* NEW: Real saved-workout volume chart */}
             <article className="panel volume-progress-panel">
               <div className="panel-heading">
                 <div><p className="panel-kicker">STRENGTH TRENDS</p><h2>Volume progress</h2></div>
