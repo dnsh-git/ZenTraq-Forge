@@ -33,7 +33,6 @@ function getWeekDays() {
       day,
       dateKey: localDateKey(date),
       isToday: localDateKey(date) === localDateKey(today),
-      count: 0,
     }
   })
 }
@@ -64,12 +63,35 @@ function getWorkoutDateKey(workout) {
   return localDateKey(new Date(year, month, Number(match[1])))
 }
 
-// NEW: Calculate consecutive training days from saved workout dates.
+function formatDate(date = new Date()) {
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+  })
+}
+
+function emptyExercise() {
+  return {
+    id: crypto.randomUUID(),
+    name: '',
+    sets: '3',
+    reps: '10',
+    weight: '0',
+  }
+}
+
+function loadWorkouts() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    return saved ? JSON.parse(saved) : sampleWorkouts
+  } catch {
+    return sampleWorkouts
+  }
+}
+
 function calculateStreak(workouts) {
   const workoutDays = new Set(
-    workouts
-      .map(getWorkoutDateKey)
-      .filter(Boolean),
+    workouts.map(getWorkoutDateKey).filter(Boolean),
   )
 
   const today = new Date()
@@ -95,28 +117,10 @@ function calculateStreak(workouts) {
   return streak
 }
 
-function emptyExercise() {
-  return {
-    id: crypto.randomUUID(),
-    name: '',
-    sets: '3',
-    reps: '10',
-    weight: '0',
-  }
-}
-
-function loadWorkouts() {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    return saved ? JSON.parse(saved) : sampleWorkouts
-  } catch {
-    return sampleWorkouts
-  }
-}
-
 function App() {
   const [workouts, setWorkouts] = useState(loadWorkouts)
   const [showLogger, setShowLogger] = useState(false)
+  const [editingWorkoutId, setEditingWorkoutId] = useState(null)
   const [workoutName, setWorkoutName] = useState('')
   const [duration, setDuration] = useState('45')
   const [exercises, setExercises] = useState([emptyExercise()])
@@ -125,10 +129,11 @@ function App() {
   const [sortOrder, setSortOrder] = useState('newest')
   const [historyFilter, setHistoryFilter] = useState('all')
 
-  const realWorkouts = workouts.filter((workout) => !workout.sample)
+  const realWorkouts = workouts.filter(workout => !workout.sample)
 
   const totalMinutes = realWorkouts.reduce(
-    (total, workout) => total + (Number.parseInt(workout.duration, 10) || 0),
+    (total, workout) =>
+      total + (Number.parseInt(workout.duration, 10) || 0),
     0,
   )
 
@@ -140,81 +145,78 @@ function App() {
 
   const currentStreak = calculateStreak(realWorkouts)
 
-  const weeklyActivity = getWeekDays().map((day) => ({
+  const weeklyActivity = getWeekDays().map(day => ({
     ...day,
     count: realWorkouts.filter(
-      (workout) => getWorkoutDateKey(workout) === day.dateKey,
+      workout => getWorkoutDateKey(workout) === day.dateKey,
     ).length,
   }))
 
-  const maxActivity = Math.max(1, ...weeklyActivity.map((day) => day.count))
+  const maxActivity = Math.max(
+    1,
+    ...weeklyActivity.map(day => day.count),
+  )
 
-  const volumeProgress = realWorkouts
-    .slice()
+  const volumeProgress = [...realWorkouts]
     .sort((a, b) =>
       (getWorkoutDateKey(a) || '').localeCompare(getWorkoutDateKey(b) || ''),
     )
     .slice(-7)
-    .map((workout) => ({
+    .map(workout => ({
       id: workout.id,
       name: workout.name,
       date: workout.date,
-      volume: Number(String(workout.volume || '').replace(/[^0-9.]/g, '')) || 0,
+      volume: Number(
+        String(workout.volume || '').replace(/[^0-9.]/g, ''),
+      ) || 0,
     }))
 
   const maxVolumeProgress = Math.max(
     1,
-    ...volumeProgress.map((workout) => workout.volume),
+    ...volumeProgress.map(workout => workout.volume),
   )
 
-  const filteredWorkouts = workouts
-    .filter((workout) => {
-      const query = searchTerm.trim().toLowerCase()
-
+  const filteredWorkouts = [...workouts]
+    .filter(workout => {
       const matchesSearch =
-        !query ||
-        workout.name.toLowerCase().includes(query) ||
-        workout.detail.toLowerCase().includes(query) ||
-        (workout.exercises || []).some((exercise) =>
-          exercise.name.toLowerCase().includes(query),
-        )
+        workout.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (workout.detail || '').toLowerCase().includes(searchTerm.toLowerCase())
 
-      const dateKey = getWorkoutDateKey(workout)
-      const today = localDateKey()
-      const weekStart = getWeekDays()[0].dateKey
+      const matchesFilter =
+        historyFilter === 'all' ||
+        (historyFilter === 'saved' && !workout.sample) ||
+        (historyFilter === 'demo' && workout.sample)
 
-      let matchesDate = true
-
-      if (historyFilter === 'today') {
-        matchesDate = dateKey === today
-      } else if (historyFilter === 'week') {
-        matchesDate = Boolean(dateKey && dateKey >= weekStart && dateKey <= today)
-      } else if (historyFilter === 'saved') {
-        matchesDate = !workout.sample
-      } else if (historyFilter === 'demo') {
-        matchesDate = Boolean(workout.sample)
-      }
-
-      return matchesSearch && matchesDate
+      return matchesSearch && matchesFilter
     })
     .sort((a, b) => {
-      const dateA = getWorkoutDateKey(a) || ''
-      const dateB = getWorkoutDateKey(b) || ''
-
-      if (sortOrder === 'oldest') return dateA.localeCompare(dateB)
       if (sortOrder === 'name') return a.name.localeCompare(b.name)
-      return dateB.localeCompare(dateA)
+      if (sortOrder === 'duration') {
+        return (
+          (Number.parseInt(b.duration, 10) || 0) -
+          (Number.parseInt(a.duration, 10) || 0)
+        )
+      }
+
+      return (
+        (getWorkoutDateKey(b) || '').localeCompare(getWorkoutDateKey(a) || '') ||
+        (b.sample ? 1 : -1)
+      )
     })
 
-  function updateExercise(id, field, value) {
-    setExercises((current) =>
-      current.map((exercise) =>
-        exercise.id === id ? { ...exercise, [field]: value } : exercise,
-      ),
-    )
+  function persistWorkouts(updated) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
+      setWorkouts(updated)
+      return true
+    } catch {
+      setNotice('Could not save changes. Check your browser storage settings.')
+      return false
+    }
   }
 
   function openLogger() {
+    setEditingWorkoutId(null)
     setWorkoutName('')
     setDuration('45')
     setExercises([emptyExercise()])
@@ -222,489 +224,581 @@ function App() {
     setShowLogger(true)
   }
 
+  function openEditLogger(workout) {
+    setEditingWorkoutId(workout.id)
+    setWorkoutName(workout.name)
+    setDuration(String(Number.parseInt(workout.duration, 10) || 45))
+    setExercises(
+      workout.exercises?.length
+        ? workout.exercises.map(exercise => ({
+            id: exercise.id || crypto.randomUUID(),
+            name: exercise.name || '',
+            sets: String(exercise.sets ?? 3),
+            reps: String(exercise.reps ?? 10),
+            weight: String(exercise.weight ?? 0),
+          }))
+        : [emptyExercise()],
+    )
+    setNotice('')
+    setShowLogger(true)
+  }
+
+  function updateExercise(id, field, value) {
+    setExercises(current =>
+      current.map(exercise =>
+        exercise.id === id
+          ? { ...exercise, [field]: value }
+          : exercise,
+      ),
+    )
+  }
+
+  function addExercise() {
+    setExercises(current => [...current, emptyExercise()])
+  }
+
+  function removeExercise(id) {
+    setExercises(current =>
+      current.length > 1
+        ? current.filter(exercise => exercise.id !== id)
+        : current,
+    )
+  }
+
   function saveWorkout(event) {
     event.preventDefault()
+    setNotice('')
 
-    const name = workoutName.trim()
-    const minutes = Number(duration)
-
-    if (!name || !Number.isFinite(minutes) || minutes < 1 || minutes > 1440) {
-      setNotice('Enter a workout name and a valid duration.')
+    if (!workoutName.trim()) {
+      setNotice('Enter a workout name first.')
       return
     }
 
-    const validExercises = exercises.map((exercise) => ({
-      ...exercise,
-      name: exercise.name.trim(),
-      sets: Number(exercise.sets),
-      reps: Number(exercise.reps),
-      weight: Number(exercise.weight),
-    }))
-
-    const invalidExercise = validExercises.some(
-      (exercise) =>
-        !exercise.name ||
-        !Number.isInteger(exercise.sets) ||
-        exercise.sets < 1 ||
-        exercise.sets > 100 ||
-        !Number.isInteger(exercise.reps) ||
-        exercise.reps < 1 ||
-        exercise.reps > 1000 ||
-        !Number.isFinite(exercise.weight) ||
-        exercise.weight < 0 ||
-        exercise.weight > 10000,
-    )
-
-    if (invalidExercise) {
-      setNotice('Check each exercise name, sets, reps and weight.')
+    if (!duration || Number(duration) <= 0) {
+      setNotice('Enter a valid workout duration.')
       return
     }
 
-    const volume = validExercises.reduce(
-      (total, exercise) =>
-        total + exercise.sets * exercise.reps * exercise.weight,
-      0,
+    const validExercises = exercises.filter(exercise => exercise.name.trim())
+
+    if (validExercises.length === 0) {
+      setNotice('Add at least one exercise with a name.')
+      return
+    }
+
+    const existingWorkout = realWorkouts.find(
+      workout => workout.id === editingWorkoutId,
     )
 
-    const today = new Date()
+    const volume = validExercises.reduce((total, exercise) => {
+      const sets = Number(exercise.sets) || 0
+      const reps = Number(exercise.reps) || 0
+      const weight = Number(exercise.weight) || 0
+      return total + sets * reps * weight
+    }, 0)
 
     const newWorkout = {
-      id: crypto.randomUUID(),
-      name,
-      detail: `${validExercises.length} exercise${validExercises.length === 1 ? '' : 's'}`,
-      date: today.toLocaleDateString('en-IN', {
-        day: 'numeric',
-        month: 'short',
-      }),
-      dateISO: localDateKey(today),
-      duration: `${minutes} min`,
-      volume: `${volume.toLocaleString('en-IN')} kg`,
-      exercises: validExercises,
+      id: existingWorkout?.id || crypto.randomUUID(),
+      name: workoutName.trim(),
+      detail: validExercises.map(exercise => exercise.name.trim()).join(', '),
+      date: existingWorkout?.date || formatDate(),
+      dateISO: existingWorkout?.dateISO || localDateKey(),
+      duration: `${Number(duration)} min`,
+      volume: `${volume.toLocaleString('en-US')} kg`,
+      exercises: validExercises.map(exercise => ({
+        ...exercise,
+        name: exercise.name.trim(),
+      })),
       sample: false,
     }
 
-    const updated = [newWorkout, ...realWorkouts]
+    const updated = editingWorkoutId
+      ? realWorkouts.map(workout =>
+          workout.id === editingWorkoutId ? newWorkout : workout,
+        )
+      : [newWorkout, ...realWorkouts]
 
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
-      setWorkouts(updated)
+    if (persistWorkouts(updated)) {
       setShowLogger(false)
+      setEditingWorkoutId(null)
       setNotice('')
-    } catch {
-      setNotice('Could not save. Check your browser storage settings.')
+    }
+  }
+
+  function deleteWorkout(id) {
+    const workout = realWorkouts.find(item => item.id === id)
+
+    if (!workout) return
+
+    const confirmed = window.confirm(
+      `Delete "${workout.name}"? This cannot be undone.`,
+    )
+
+    if (!confirmed) return
+
+    const updated = realWorkouts.filter(item => item.id !== id)
+
+    if (persistWorkouts(updated)) {
+      setNotice('')
     }
   }
 
   function clearWorkouts() {
-    if (!window.confirm('Delete all your saved workouts? This cannot be undone.')) {
-      return
-    }
+    const confirmed = window.confirm(
+      'Clear all saved workouts? This cannot be undone.',
+    )
 
-    try {
-      localStorage.removeItem(STORAGE_KEY)
-      setWorkouts([])
-    } catch {
-      setNotice('Could not clear saved workouts.')
+    if (!confirmed) return
+
+    if (persistWorkouts([])) {
+      setNotice('')
     }
   }
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <a className="brand" href="#dashboard">
-          <span className="brand-mark">Z</span>
-          <span>ZENTRAQ<span className="brand-light">FORGE</span></span>
-        </a>
+        <div className="brand">
+          <span>ZENTRAQ<span className="brand-light"> FORGE</span></span>
+        </div>
 
-        <div className="nav-label">WORKSPACE</div>
-        <nav className="navigation">
-          <a className="nav-item active" href="#dashboard"><span>▦</span> Dashboard</a>
-          <a className="nav-item" href="#workouts"><span>◈</span> Workouts</a>
-          <a className="nav-item" href="#progress"><span>↗</span> Progress</a>
-          <a className="nav-item" href="#history"><span>◷</span> History</a>
+        <div className="sidebar-label">WORKSPACE</div>
+        <nav className="side-nav">
+          <a className="nav-item active" href="#overview">Overview</a>
+          <a className="nav-item" href="#history">Workout history</a>
+          <a className="nav-item" href="#progress">Progress</a>
         </nav>
 
         <div className="sidebar-bottom">
-          <div className="sidebar-plan">
-            <span className="plan-icon">✳</span>
-            <div><strong>Stay consistent.</strong><p>Progress over perfection.</p></div>
+          <div className="sidebar-status">
+            <span className="status-dot" />
+            <span>LOCAL STORAGE ACTIVE</span>
           </div>
-          <div className="profile">
-            <div className="avatar">A</div>
-            <div className="profile-info"><strong>Athlete</strong><span>Personal workspace</span></div>
-            <span className="profile-menu">•••</span>
-          </div>
+          <div className="sidebar-caption">YOUR TRAINING. YOUR DATA.</div>
         </div>
       </aside>
 
-      <main className="main-content" id="dashboard">
+      <main className="main-content">
         <header className="topbar">
-          <div className="breadcrumb">Workspace <span>/</span> Dashboard</div>
-          <div className="topbar-right">
-            <span className="today-label">YOUR TRAINING SPACE</span>
-            <div className="avatar small">A</div>
+          <div>
+            <div className="eyebrow">PERSONAL TRAINING DASHBOARD</div>
+            <h1>Training overview</h1>
+            <p className="page-subtitle">Track your work. Build consistency.</p>
           </div>
+
+          <button className="primary-button" onClick={openLogger}>
+            + Log workout
+          </button>
         </header>
 
-        <div className="page-content">
-          <section className="welcome-row">
-            <div>
-              <p className="eyebrow"><span className="status-dot" /> YOUR FITNESS OVERVIEW</p>
-              <h1>Build strength.<br /><span>Track progress.</span></h1>
-              <p className="welcome-copy">Every session counts. Here's how your training is going.</p>
+        <section className="stats-grid" id="overview">
+          <article className="stat-card">
+            <div className="stat-top">
+              <span>Total workouts</span>
+              <span className="stat-icon">↗</span>
             </div>
-            <button className="primary-button" onClick={openLogger} type="button">
-              <span>＋</span> Log a workout
-            </button>
-          </section>
+            <div className="stat-number">{realWorkouts.length}</div>
+            <div className="stat-foot">Saved training sessions</div>
+          </article>
 
-          <section className="stats-grid">
-            <article className="stat-card">
-              <div className="stat-top"><span>Total workouts</span><span className="stat-icon">◈</span></div>
-              <div className="stat-value">{realWorkouts.length} <span className="stat-unit">sessions</span></div>
-              <div className="stat-foot"><span className="stat-accent">Your saved records</span></div>
-            </article>
-            <article className="stat-card">
-              <div className="stat-top"><span>Training time</span><span className="stat-icon">◷</span></div>
-              <div className="stat-value">{(totalMinutes / 60).toFixed(1)} <span className="stat-unit">hours</span></div>
-              <div className="stat-foot"><span className="stat-accent">Total logged time</span></div>
-            </article>
-            <article className="stat-card">
-              <div className="stat-top"><span>Total volume</span><span className="stat-icon">↗</span></div>
-              <div className="stat-value">{totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(1)}k` : totalVolume.toLocaleString('en-IN')} <span className="stat-unit">kg</span></div>
-              <div className="stat-foot"><span className="stat-accent">Your logged volume</span></div>
-            </article>
-            <article className="stat-card highlight-stat">
-              <div className="stat-top"><span>Current streak</span><span className="stat-icon">✳</span></div>
-              <div className="stat-value">{currentStreak} <span className="stat-unit">days</span></div>
-              <div className="stat-foot">
-                <span>{currentStreak > 0 ? 'Keep your momentum going' : 'Log a workout to start your streak'}</span>
-              </div>
-            </article>
-          </section>
+          <article className="stat-card">
+            <div className="stat-top">
+              <span>Training time</span>
+              <span className="stat-icon">◷</span>
+            </div>
+            <div className="stat-number">
+              {Math.floor(totalMinutes / 60)}
+              <span className="stat-unit">h </span>
+              {totalMinutes % 60}
+              <span className="stat-unit">m</span>
+            </div>
+            <div className="stat-foot">Total recorded duration</div>
+          </article>
 
-          <section className="content-grid">
-            <article className="panel activity-panel" id="progress">
-              <div className="panel-heading">
-                <div><p className="panel-kicker">YOUR CONSISTENCY</p><h2>Weekly activity</h2></div>
-                <span className="period-badge">This week</span>
+          <article className="stat-card">
+            <div className="stat-top">
+              <span>Total volume</span>
+              <span className="stat-icon">▤</span>
+            </div>
+            <div className="stat-number">
+              {totalVolume.toLocaleString('en-US')}
+              <span className="stat-unit"> kg</span>
+            </div>
+            <div className="stat-foot">Sets × reps × weight</div>
+          </article>
+
+          <article className="stat-card">
+            <div className="stat-top">
+              <span>Current streak</span>
+              <span className="stat-icon">✳</span>
+            </div>
+            <div className="stat-number">
+              {currentStreak}
+              <span className="stat-unit"> days</span>
+            </div>
+            <div className="stat-foot">Consecutive training days</div>
+          </article>
+        </section>
+
+        <section className="content-grid" id="progress">
+          <article className="panel activity-panel">
+            <div className="panel-heading">
+              <div>
+                <div className="eyebrow">CONSISTENCY</div>
+                <h2>Weekly activity</h2>
               </div>
-              <div className="chart-summary">
-                <strong>{weeklyActivity.reduce((sum, day) => sum + day.count, 0)} <span>saved sessions</span></strong>
-                <span className="chart-note">Monday – Sunday</span>
+              <span className="panel-tag">THIS WEEK</span>
+            </div>
+
+            <div className="activity-chart">
+              {weeklyActivity.map(day => (
+                <div className="activity-column" key={day.dateKey}>
+                  <span className="activity-count">{day.count || ''}</span>
+                  <div className="activity-track">
+                    <div
+                      className={`activity-bar ${day.isToday ? 'today' : ''}`}
+                      style={{
+                        height: `${day.count ? Math.max(8, (day.count / maxActivity) * 100) : 3}%`,
+                      }}
+                    />
+                  </div>
+                  <span className={day.isToday ? 'day-label today-label' : 'day-label'}>
+                    {day.day}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="chart-caption">
+              Activity is calculated from your saved workouts.
+            </div>
+          </article>
+
+          <article className="panel volume-progress-panel">
+            <div className="panel-heading">
+              <div>
+                <div className="eyebrow">PERFORMANCE</div>
+                <h2>Volume progress</h2>
               </div>
-              <div className="activity-chart">
-                {weeklyActivity.map((item) => (
-                  <div className="chart-column" key={item.day} title={`${item.day}: ${item.count} workout(s)`}>
-                    <div className="bar-area">
+              <span className="panel-tag">LAST 7</span>
+            </div>
+
+            {volumeProgress.length ? (
+              <div className="volume-progress-chart">
+                {volumeProgress.map(workout => (
+                  <div className="volume-progress-column" key={workout.id}>
+                    <strong>
+                      {workout.volume >= 1000
+                        ? `${(workout.volume / 1000).toFixed(1)}k`
+                        : workout.volume}
+                    </strong>
+                    <div className="volume-progress-track">
                       <div
-                        className={`activity-bar ${item.isToday ? 'bar-featured' : ''}`}
+                        className="volume-progress-bar"
                         style={{
-                          height: `${item.count === 0 ? 4 : Math.max(12, (item.count / maxActivity) * 100)}%`,
-                          opacity: item.count === 0 ? 0.3 : 1,
+                          height: `${Math.max(4, (workout.volume / maxVolumeProgress) * 100)}%`,
                         }}
                       />
                     </div>
-                    <span className={item.isToday ? 'chart-today' : ''}>{item.day}</span>
-                    <span className="chart-count">{item.count}</span>
+                    <span>{workout.date}</span>
                   </div>
                 ))}
               </div>
-              <div className="chart-footer"><span className="legend-dot" /> Your saved workouts by day</div>
-            </article>
-
-            <article className="panel volume-progress-panel">
-              <div className="panel-heading">
-                <div><p className="panel-kicker">STRENGTH TRENDS</p><h2>Volume progress</h2></div>
-                <span className="period-badge">Last 7 workouts</span>
-              </div>
-              {volumeProgress.length === 0 ? (
-                <div className="progress-empty">Log your first workout to see your volume progress.</div>
-              ) : (
-                <div className="volume-progress-chart">
-                  {volumeProgress.map((workout) => (
-                    <div
-                      className="volume-progress-column"
-                      key={workout.id}
-                      title={`${workout.name}: ${workout.volume.toLocaleString('en-IN')} kg`}
-                    >
-                      <strong>{workout.volume >= 1000 ? `${(workout.volume / 1000).toFixed(1)}k` : workout.volume.toLocaleString('en-IN')}</strong>
-                      <div className="volume-progress-track">
-                        <div
-                          className="volume-progress-bar"
-                          style={{ height: `${Math.max(4, (workout.volume / maxVolumeProgress) * 100)}%` }}
-                        />
-                      </div>
-                      <span>{workout.date}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="chart-footer"><span className="legend-dot" /> Total lifted volume per workout</div>
-            </article>
-
-            <article className="panel focus-panel">
-              <div className="panel-heading">
-                <div><p className="panel-kicker">NEXT UP</p><h2>Today's focus</h2></div>
-                <span className="focus-symbol">✳</span>
-              </div>
-              <div className="focus-illustration"><span>01</span><span>02</span><span>03</span><span>04</span></div>
-              <h3>Make it count.</h3>
-              <p>Show up, focus on your form, and give your next session your best effort.</p>
-              <a className="text-link" href="#workouts">View workout history <span>→</span></a>
-            </article>
-          </section>
-
-          <section className="panel workouts-panel" id="workouts">
-            <div className="panel-heading workout-heading">
-              <div><p className="panel-kicker">YOUR TRAINING LOG</p><h2>Recent workouts</h2></div>
-              <div className="workout-actions">
-                <a href="#history" className="secondary-button">View history <span>→</span></a>
-                {realWorkouts.length > 0 && (
-                  <button className="clear-button" type="button" onClick={clearWorkouts}>Clear saved</button>
-                )}
-              </div>
-            </div>
-
-            <div className="history-tools" id="history">
-              <input
-                className="history-search"
-                type="search"
-                placeholder="Search workouts or exercises..."
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                aria-label="Search workouts or exercises"
-              />
-
-              <div className="history-selects">
-                <select
-                  value={historyFilter}
-                  onChange={(event) => setHistoryFilter(event.target.value)}
-                  aria-label="Filter workouts"
-                >
-                  <option value="all">All workouts</option>
-                  <option value="saved">My workouts</option>
-                  <option value="today">Today</option>
-                  <option value="week">This week</option>
-                  <option value="demo">Demo workouts</option>
-                </select>
-
-                <select
-                  value={sortOrder}
-                  onChange={(event) => setSortOrder(event.target.value)}
-                  aria-label="Sort workouts"
-                >
-                  <option value="newest">Newest first</option>
-                  <option value="oldest">Oldest first</option>
-                  <option value="name">Name A–Z</option>
-                </select>
-              </div>
-            </div>
-
-            <p className="history-result-count">
-              Showing {filteredWorkouts.length} of {workouts.length} workouts
-            </p>
-
-            {filteredWorkouts.length === 0 ? (
-              <div className="empty-state">
-                <span>◈</span>
-                <strong>No matching workouts</strong>
-                <p>Try a different search or filter, or log a new session.</p>
-                <button
-                  className="secondary-button"
-                  onClick={() => {
-                    setSearchTerm('')
-                    setHistoryFilter('all')
-                  }}
-                  type="button"
-                >
-                  Clear filters
-                </button>
-              </div>
             ) : (
-              <div className="workout-list">
-                {filteredWorkouts.map((workout, index) => (
-                  <article className="workout-row" key={workout.id}>
-                    <div className={`workout-symbol symbol-${(index % 3) + 1}`}>
-                      {['↗', '◈', '⌁'][index % 3]}
-                    </div>
-                    <div className="workout-description">
-                      <strong>{workout.name}</strong>
-                      <span>{workout.detail}</span>
-                      {workout.exercises?.length > 0 && (
-                        <details className="exercise-details">
-                          <summary>View {workout.exercises.length} exercises</summary>
-                          {workout.exercises.map((exercise) => (
-                            <p key={exercise.id}>
-                              {exercise.name}: {exercise.sets} × {exercise.reps} × {exercise.weight} kg
-                            </p>
-                          ))}
-                        </details>
-                      )}
-                    </div>
-                    <div className="workout-date">{workout.date}</div>
-                    <div className="workout-metric">
-                      <strong>{workout.duration}</strong><span>Duration</span>
-                    </div>
-                    <div className="workout-metric volume-metric">
-                      <strong>{workout.volume}</strong><span>Volume</span>
-                    </div>
-                    <span className="row-arrow">{workout.sample ? '•' : '✓'}</span>
-                  </article>
-                ))}
+              <div className="progress-empty">
+                Log workouts to see your volume progress.
               </div>
             )}
+          </article>
 
-            <p className="data-notice">
-              {realWorkouts.length === 0
-                ? 'Sample entries are shown until you save your first workout.'
-                : 'Your workout records are saved in this browser.'}
+          <article className="panel focus-panel">
+            <div className="eyebrow">YOUR NEXT STEP</div>
+            <h2>Consistency beats intensity.</h2>
+            <p>
+              Record every session to build a clearer picture of your
+              training progress over time.
             </p>
-          </section>
+            <button className="secondary-button" onClick={openLogger}>
+              Record a session <span>↗</span>
+            </button>
+          </article>
+        </section>
 
-          <footer className="page-footer">
-            <span>ZENTRAQ FORGE <span className="footer-separator">/</span> TRAIN WITH INTENTION</span>
-            <span>PERSONAL FITNESS WORKSPACE</span>
-          </footer>
-        </div>
+        <section className="panel history-panel" id="history">
+          <div className="history-heading">
+            <div>
+              <div className="eyebrow">YOUR TRAINING LOG</div>
+              <h2>Workout history</h2>
+              <p className="history-subtitle">
+                Review, edit, or remove your recorded sessions.
+              </p>
+            </div>
 
-        {showLogger && (
-          <div className="modal-overlay" onClick={() => setShowLogger(false)}>
-            <section
-              className="logger-modal"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="logger-title"
-              onClick={(event) => event.stopPropagation()}
+            <button className="secondary-button" onClick={openLogger}>
+              + Add workout
+            </button>
+          </div>
+
+          <div className="history-controls">
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={event => setSearchTerm(event.target.value)}
+              placeholder="Search workouts..."
+              aria-label="Search workouts"
+            />
+
+            <select
+              value={historyFilter}
+              onChange={event => setHistoryFilter(event.target.value)}
+              aria-label="Filter workouts"
             >
-              <div className="modal-heading">
-                <div><p className="panel-kicker">TRAINING LOG</p><h2 id="logger-title">Log a workout</h2></div>
-                <button className="close-button" type="button" onClick={() => setShowLogger(false)} aria-label="Close">×</button>
+              <option value="all">All workouts</option>
+              <option value="saved">Saved workouts</option>
+              <option value="demo">Demo workouts</option>
+            </select>
+
+            <select
+              value={sortOrder}
+              onChange={event => setSortOrder(event.target.value)}
+              aria-label="Sort workouts"
+            >
+              <option value="newest">Newest first</option>
+              <option value="name">Name A–Z</option>
+              <option value="duration">Longest duration</option>
+            </select>
+          </div>
+
+          <div className="workout-list">
+            {filteredWorkouts.length ? (
+              filteredWorkouts.map(workout => (
+                <article className="workout-row" key={workout.id}>
+                  <div className="workout-symbol">↗</div>
+
+                  <div className="workout-info">
+                    <h3>{workout.name}</h3>
+                    <p>{workout.detail || 'Workout session'}</p>
+                    {workout.sample && (
+                      <span className="demo-label">DEMO DATA</span>
+                    )}
+                  </div>
+
+                  <div className="workout-date">{workout.date}</div>
+
+                  <div className="workout-metric">
+                    <strong>{workout.duration}</strong>
+                    <span>DURATION</span>
+                  </div>
+
+                  <div className="workout-metric">
+                    <strong>{workout.volume}</strong>
+                    <span>VOLUME</span>
+                  </div>
+
+                  {!workout.sample && (
+                    <div className="record-actions">
+                      <button
+                        className="record-edit"
+                        type="button"
+                        onClick={() => openEditLogger(workout)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="record-delete"
+                        type="button"
+                        onClick={() => deleteWorkout(workout.id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </article>
+              ))
+            ) : (
+              <div className="empty-history">
+                No workouts match your search.
+              </div>
+            )}
+          </div>
+
+          <div className="history-footer">
+            <span>{filteredWorkouts.length} sessions displayed</span>
+            {realWorkouts.length > 0 && (
+              <button className="clear-button" onClick={clearWorkouts}>
+                Clear saved workouts
+              </button>
+            )}
+          </div>
+        </section>
+
+        <footer className="app-footer">
+          <span>ZENTRAQ FORGE <span className="footer-separator">/</span> TRAIN WITH INTENTION</span>
+          <span>PERSONAL WORKSPACE</span>
+        </footer>
+      </main>
+
+      {showLogger && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={event => {
+            if (event.target === event.currentTarget) {
+              setShowLogger(false)
+              setEditingWorkoutId(null)
+            }
+          }}
+        >
+          <section
+            className="workout-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="logger-title"
+          >
+            <div className="modal-heading">
+              <div>
+                <div className="eyebrow">
+                  {editingWorkoutId ? 'UPDATE SESSION' : 'NEW SESSION'}
+                </div>
+                <h2 id="logger-title">
+                  {editingWorkoutId ? 'Edit workout' : 'Log a workout'}
+                </h2>
               </div>
 
-              <form onSubmit={saveWorkout}>
-                <label htmlFor="workout-name">Workout name</label>
-                <input
-                  id="workout-name"
-                  value={workoutName}
-                  onChange={(event) => setWorkoutName(event.target.value)}
-                  placeholder="e.g. Push Day"
-                  maxLength={60}
-                  required
-                  autoFocus
-                />
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => {
+                  setShowLogger(false)
+                  setEditingWorkoutId(null)
+                }}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
 
-                <label htmlFor="workout-duration">Duration (minutes)</label>
+            <form onSubmit={saveWorkout}>
+              <label className="form-label">
+                Workout name
                 <input
-                  id="workout-duration"
+                  value={workoutName}
+                  onChange={event => setWorkoutName(event.target.value)}
+                  placeholder="e.g. Push Day"
+                  required
+                />
+              </label>
+
+              <label className="form-label">
+                Duration (minutes)
+                <input
                   type="number"
                   min="1"
-                  max="1440"
                   value={duration}
-                  onChange={(event) => setDuration(event.target.value)}
+                  onChange={event => setDuration(event.target.value)}
                   required
                 />
+              </label>
 
-                <div className="exercise-form-heading">
-                  <h3>Exercises</h3><span>{exercises.length} added</span>
-                </div>
+              <div className="exercise-section-heading">
+                <h3>Exercises</h3>
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={addExercise}
+                >
+                  + Add exercise
+                </button>
+              </div>
 
+              <div className="exercise-list">
                 {exercises.map((exercise, index) => (
-                  <fieldset className="exercise-form-card" key={exercise.id}>
+                  <div className="exercise-card" key={exercise.id}>
                     <div className="exercise-card-heading">
-                      <legend>Exercise {index + 1}</legend>
+                      <span>EXERCISE {String(index + 1).padStart(2, '0')}</span>
                       {exercises.length > 1 && (
                         <button
-                          className="remove-exercise"
                           type="button"
-                          onClick={() => setExercises((current) => current.filter((item) => item.id !== exercise.id))}
+                          className="remove-exercise"
+                          onClick={() => removeExercise(exercise.id)}
                         >
                           Remove
                         </button>
                       )}
                     </div>
 
-                    <label htmlFor={`exercise-name-${exercise.id}`}>Exercise name</label>
-                    <input
-                      id={`exercise-name-${exercise.id}`}
-                      value={exercise.name}
-                      onChange={(event) => updateExercise(exercise.id, 'name', event.target.value)}
-                      placeholder="e.g. Bench Press"
-                      maxLength={60}
-                      required
-                    />
+                    <label className="form-label">
+                      Exercise name
+                      <input
+                        value={exercise.name}
+                        onChange={event =>
+                          updateExercise(exercise.id, 'name', event.target.value)
+                        }
+                        placeholder="e.g. Bench Press"
+                      />
+                    </label>
 
-                    <div className="exercise-number-grid">
-                      <div>
-                        <label htmlFor={`sets-${exercise.id}`}>Sets</label>
+                    <div className="exercise-fields">
+                      <label className="form-label">
+                        Sets
                         <input
-                          id={`sets-${exercise.id}`}
                           type="number"
                           min="1"
-                          max="100"
                           value={exercise.sets}
-                          onChange={(event) => updateExercise(exercise.id, 'sets', event.target.value)}
-                          required
+                          onChange={event =>
+                            updateExercise(exercise.id, 'sets', event.target.value)
+                          }
                         />
-                      </div>
-                      <div>
-                        <label htmlFor={`reps-${exercise.id}`}>Reps</label>
+                      </label>
+
+                      <label className="form-label">
+                        Reps
                         <input
-                          id={`reps-${exercise.id}`}
                           type="number"
                           min="1"
-                          max="1000"
                           value={exercise.reps}
-                          onChange={(event) => updateExercise(exercise.id, 'reps', event.target.value)}
-                          required
+                          onChange={event =>
+                            updateExercise(exercise.id, 'reps', event.target.value)
+                          }
                         />
-                      </div>
-                      <div>
-                        <label htmlFor={`weight-${exercise.id}`}>Weight (kg)</label>
+                      </label>
+
+                      <label className="form-label">
+                        Weight (kg)
                         <input
-                          id={`weight-${exercise.id}`}
                           type="number"
                           min="0"
-                          max="10000"
                           step="0.5"
                           value={exercise.weight}
-                          onChange={(event) => updateExercise(exercise.id, 'weight', event.target.value)}
-                          required
+                          onChange={event =>
+                            updateExercise(exercise.id, 'weight', event.target.value)
+                          }
                         />
-                      </div>
+                      </label>
                     </div>
-                  </fieldset>
+                  </div>
                 ))}
+              </div>
 
+              {notice && <p className="form-notice">{notice}</p>}
+
+              <div className="modal-actions">
                 <button
-                  className="add-exercise-button"
                   type="button"
-                  onClick={() => setExercises((current) => [...current, emptyExercise()])}
+                  className="secondary-button"
+                  onClick={() => {
+                    setShowLogger(false)
+                    setEditingWorkoutId(null)
+                  }}
                 >
-                  ＋ Add another exercise
+                  Cancel
                 </button>
-
-                <p className="volume-preview">
-                  Volume preview: {exercises.reduce(
-                    (sum, exercise) =>
-                      sum +
-                      (Number(exercise.sets) || 0) *
-                      (Number(exercise.reps) || 0) *
-                      (Number(exercise.weight) || 0),
-                    0,
-                  ).toLocaleString('en-IN')} kg
-                </p>
-
-                {notice && <p className="form-notice" role="alert">{notice}</p>}
-
-                <button className="primary-button save-workout" type="submit">
-                  Save workout
+                <button type="submit" className="primary-button">
+                  {editingWorkoutId ? 'Save changes' : 'Save workout'}
                 </button>
-              </form>
-            </section>
-          </div>
-        )}
-      </main>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </div>
   )
 }
