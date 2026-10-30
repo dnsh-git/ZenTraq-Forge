@@ -412,3 +412,72 @@ h2 { margin: 0; font: 600 19px 'Space Grotesk', sans-serif; }
     justify-content: flex-start;
   }
 }
+
+.backup-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.backup-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid #343b33;
+  border-radius: 6px;
+  color: #c4f36b;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.backup-notice button {
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: #c4f36b;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.record-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.record-actions button {
+  padding: 6px 8px;
+  border: 1px solid #343b33;
+  border-radius: 5px;
+  background: transparent;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.record-edit {
+  color: #c4f36b;
+}
+
+.record-delete {
+  color: #e9958d;
+}
+
+.record-actions button:hover {
+  border-color: #c4f36b;
+}
+
+@media (max-width: 760px) {
+  .backup-actions {
+    justify-content: flex-start;
+  }
+
+  .record-actions {
+    grid-column: 2 / -1;
+    justify-content: flex-start;
+  }
+}
