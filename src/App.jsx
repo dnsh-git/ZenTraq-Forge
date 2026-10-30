@@ -1,5 +1,5 @@
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import './App.css'
 
 const STORAGE_KEY = 'zentraq-workouts'
@@ -17,6 +17,13 @@ function localDateKey(date = new Date()) {
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+function formatDate(date = new Date()) {
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+  })
 }
 
 function getWeekDays() {
@@ -54,20 +61,12 @@ function getWorkoutDateKey(workout) {
 
   const now = new Date()
   let year = now.getFullYear()
-  const parsed = new Date(year, month, Number(match[1]))
 
-  if (parsed > now && month === 11 && now.getMonth() === 0) {
+  if (new Date(year, month, Number(match[1])) > now && month === 11 && now.getMonth() === 0) {
     year -= 1
   }
 
   return localDateKey(new Date(year, month, Number(match[1])))
-}
-
-function formatDate(date = new Date()) {
-  return date.toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-  })
 }
 
 function emptyExercise() {
@@ -128,12 +127,12 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('')
   const [sortOrder, setSortOrder] = useState('newest')
   const [historyFilter, setHistoryFilter] = useState('all')
+  const importInputRef = useRef(null)
 
   const realWorkouts = workouts.filter(workout => !workout.sample)
 
   const totalMinutes = realWorkouts.reduce(
-    (total, workout) =>
-      total + (Number.parseInt(workout.duration, 10) || 0),
+    (total, workout) => total + (Number.parseInt(workout.duration, 10) || 0),
     0,
   )
 
@@ -164,11 +163,8 @@ function App() {
     .slice(-7)
     .map(workout => ({
       id: workout.id,
-      name: workout.name,
       date: workout.date,
-      volume: Number(
-        String(workout.volume || '').replace(/[^0-9.]/g, ''),
-      ) || 0,
+      volume: Number(String(workout.volume || '').replace(/[^0-9.]/g, '')) || 0,
     }))
 
   const maxVolumeProgress = Math.max(
@@ -191,6 +187,7 @@ function App() {
     })
     .sort((a, b) => {
       if (sortOrder === 'name') return a.name.localeCompare(b.name)
+
       if (sortOrder === 'duration') {
         return (
           (Number.parseInt(b.duration, 10) || 0) -
@@ -215,6 +212,86 @@ function App() {
     }
   }
 
+  function exportBackup() {
+    try {
+      const backup = {
+        app: 'ZENTRAQ FORGE',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        workouts: realWorkouts,
+      }
+
+      const blob = new Blob(
+        [JSON.stringify(backup, null, 2)],
+        { type: 'application/json' },
+      )
+
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `zentraq-backup-${localDateKey()}.json`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+
+      setNotice(`Backup exported: ${realWorkouts.length} saved workouts.`)
+    } catch {
+      setNotice('Could not export your backup.')
+    }
+  }
+
+  async function importBackup(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file) return
+
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+      const imported = Array.isArray(parsed) ? parsed : parsed.workouts
+
+      if (!Array.isArray(imported)) {
+        throw new Error('Invalid backup format.')
+      }
+
+      const valid = imported.every(workout =>
+        workout &&
+        typeof workout.id === 'string' &&
+        typeof workout.name === 'string' &&
+        typeof workout.duration === 'string' &&
+        typeof workout.volume === 'string' &&
+        Array.isArray(workout.exercises),
+      )
+
+      if (!valid) {
+        throw new Error('The file contains invalid workout records.')
+      }
+
+      const cleaned = imported.map(workout => ({
+        ...workout,
+        sample: false,
+      }))
+
+      const confirmed = window.confirm(
+        `Import ${cleaned.length} workouts? This will replace your current saved workouts.`,
+      )
+
+      if (!confirmed) return
+
+      if (persistWorkouts(cleaned)) {
+        setNotice(`Successfully imported ${cleaned.length} workouts.`)
+      }
+    } catch (error) {
+      setNotice(
+        error instanceof SyntaxError
+          ? 'This file is not valid JSON.'
+          : error.message || 'Could not import this backup.',
+      )
+    }
+  }
+
   function openLogger() {
     setEditingWorkoutId(null)
     setWorkoutName('')
@@ -229,7 +306,7 @@ function App() {
     setWorkoutName(workout.name)
     setDuration(String(Number.parseInt(workout.duration, 10) || 45))
     setExercises(
-      workout.exercises?.length
+      workout.exercises.length
         ? workout.exercises.map(exercise => ({
             id: exercise.id || crypto.randomUUID(),
             name: exercise.name || '',
@@ -246,9 +323,7 @@ function App() {
   function updateExercise(id, field, value) {
     setExercises(current =>
       current.map(exercise =>
-        exercise.id === id
-          ? { ...exercise, [field]: value }
-          : exercise,
+        exercise.id === id ? { ...exercise, [field]: value } : exercise,
       ),
     )
   }
@@ -281,7 +356,7 @@ function App() {
 
     const validExercises = exercises.filter(exercise => exercise.name.trim())
 
-    if (validExercises.length === 0) {
+    if (!validExercises.length) {
       setNotice('Add at least one exercise with a name.')
       return
     }
@@ -291,10 +366,10 @@ function App() {
     )
 
     const volume = validExercises.reduce((total, exercise) => {
-      const sets = Number(exercise.sets) || 0
-      const reps = Number(exercise.reps) || 0
-      const weight = Number(exercise.weight) || 0
-      return total + sets * reps * weight
+      return total +
+        (Number(exercise.sets) || 0) *
+        (Number(exercise.reps) || 0) *
+        (Number(exercise.weight) || 0)
     }, 0)
 
     const newWorkout = {
@@ -327,14 +402,11 @@ function App() {
 
   function deleteWorkout(id) {
     const workout = realWorkouts.find(item => item.id === id)
-
     if (!workout) return
 
-    const confirmed = window.confirm(
-      `Delete "${workout.name}"? This cannot be undone.`,
-    )
-
-    if (!confirmed) return
+    if (!window.confirm(`Delete "${workout.name}"? This cannot be undone.`)) {
+      return
+    }
 
     const updated = realWorkouts.filter(item => item.id !== id)
 
@@ -344,11 +416,9 @@ function App() {
   }
 
   function clearWorkouts() {
-    const confirmed = window.confirm(
-      'Clear all saved workouts? This cannot be undone.',
-    )
-
-    if (!confirmed) return
+    if (!window.confirm('Clear all saved workouts? This cannot be undone.')) {
+      return
+    }
 
     if (persistWorkouts([])) {
       setNotice('')
@@ -385,7 +455,6 @@ function App() {
             <h1>Training overview</h1>
             <p className="page-subtitle">Track your work. Build consistency.</p>
           </div>
-
           <button className="primary-button" onClick={openLogger}>
             + Log workout
           </button>
@@ -394,8 +463,7 @@ function App() {
         <section className="stats-grid" id="overview">
           <article className="stat-card">
             <div className="stat-top">
-              <span>Total workouts</span>
-              <span className="stat-icon">↗</span>
+              <span>Total workouts</span><span className="stat-icon">↗</span>
             </div>
             <div className="stat-number">{realWorkouts.length}</div>
             <div className="stat-foot">Saved training sessions</div>
@@ -403,8 +471,7 @@ function App() {
 
           <article className="stat-card">
             <div className="stat-top">
-              <span>Training time</span>
-              <span className="stat-icon">◷</span>
+              <span>Training time</span><span className="stat-icon">◷</span>
             </div>
             <div className="stat-number">
               {Math.floor(totalMinutes / 60)}
@@ -417,8 +484,7 @@ function App() {
 
           <article className="stat-card">
             <div className="stat-top">
-              <span>Total volume</span>
-              <span className="stat-icon">▤</span>
+              <span>Total volume</span><span className="stat-icon">▤</span>
             </div>
             <div className="stat-number">
               {totalVolume.toLocaleString('en-US')}
@@ -429,12 +495,10 @@ function App() {
 
           <article className="stat-card">
             <div className="stat-top">
-              <span>Current streak</span>
-              <span className="stat-icon">✳</span>
+              <span>Current streak</span><span className="stat-icon">✳</span>
             </div>
             <div className="stat-number">
-              {currentStreak}
-              <span className="stat-unit"> days</span>
+              {currentStreak}<span className="stat-unit"> days</span>
             </div>
             <div className="stat-foot">Consecutive training days</div>
           </article>
@@ -514,8 +578,8 @@ function App() {
             <div className="eyebrow">YOUR NEXT STEP</div>
             <h2>Consistency beats intensity.</h2>
             <p>
-              Record every session to build a clearer picture of your
-              training progress over time.
+              Record every session to build a clearer picture of your training
+              progress over time.
             </p>
             <button className="secondary-button" onClick={openLogger}>
               Record a session <span>↗</span>
@@ -529,10 +593,9 @@ function App() {
               <div className="eyebrow">YOUR TRAINING LOG</div>
               <h2>Workout history</h2>
               <p className="history-subtitle">
-                Review, edit, or remove your recorded sessions.
+                Review, edit, remove, or back up your sessions.
               </p>
             </div>
-
             <button className="secondary-button" onClick={openLogger}>
               + Add workout
             </button>
@@ -577,9 +640,7 @@ function App() {
                   <div className="workout-info">
                     <h3>{workout.name}</h3>
                     <p>{workout.detail || 'Workout session'}</p>
-                    {workout.sample && (
-                      <span className="demo-label">DEMO DATA</span>
-                    )}
+                    {workout.sample && <span className="demo-label">DEMO DATA</span>}
                   </div>
 
                   <div className="workout-date">{workout.date}</div>
@@ -615,20 +676,49 @@ function App() {
                 </article>
               ))
             ) : (
-              <div className="empty-history">
-                No workouts match your search.
-              </div>
+              <div className="empty-history">No workouts match your search.</div>
             )}
           </div>
 
           <div className="history-footer">
             <span>{filteredWorkouts.length} sessions displayed</span>
-            {realWorkouts.length > 0 && (
-              <button className="clear-button" onClick={clearWorkouts}>
-                Clear saved workouts
+
+            <div className="backup-actions">
+              <button className="secondary-button" onClick={exportBackup}>
+                Export backup
               </button>
-            )}
+
+              <button
+                className="secondary-button"
+                onClick={() => importInputRef.current?.click()}
+              >
+                Import backup
+              </button>
+
+              <input
+                ref={importInputRef}
+                type="file"
+                accept=".json,application/json"
+                hidden
+                onChange={importBackup}
+              />
+
+              {realWorkouts.length > 0 && (
+                <button className="clear-button" onClick={clearWorkouts}>
+                  Clear saved workouts
+                </button>
+              )}
+            </div>
           </div>
+
+          {notice && (
+            <div className="backup-notice" role="status">
+              <span>{notice}</span>
+              <button type="button" onClick={() => setNotice('')} aria-label="Dismiss message">
+                ×
+              </button>
+            </div>
+          )}
         </section>
 
         <footer className="app-footer">
@@ -662,7 +752,6 @@ function App() {
                   {editingWorkoutId ? 'Edit workout' : 'Log a workout'}
                 </h2>
               </div>
-
               <button
                 type="button"
                 className="modal-close"
@@ -700,11 +789,7 @@ function App() {
 
               <div className="exercise-section-heading">
                 <h3>Exercises</h3>
-                <button
-                  type="button"
-                  className="text-button"
-                  onClick={addExercise}
-                >
+                <button type="button" className="text-button" onClick={addExercise}>
                   + Add exercise
                 </button>
               </div>
