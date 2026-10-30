@@ -3,6 +3,23 @@ import { useRef, useState } from 'react'
 import './App.css'
 
 const STORAGE_KEY = 'zentraq-workouts'
+const PLANS_KEY = 'zentraq-workout-plans'
+
+const PLAN_TEMPLATES = {
+  'Push / Pull / Legs': [
+    { name: 'Push', exercises: 'Bench Press\nOverhead Press\nIncline Dumbbell Press\nLateral Raises\nTriceps Pushdown' },
+    { name: 'Pull', exercises: 'Lat Pulldown\nSeated Cable Row\nFace Pulls\nDumbbell Curls\nHammer Curls' },
+    { name: 'Legs', exercises: 'Squats\nRomanian Deadlift\nLeg Press\nLeg Curl\nCalf Raises' },
+  ],
+  'Upper / Lower': [
+    { name: 'Upper Body', exercises: 'Bench Press\nLat Pulldown\nShoulder Press\nSeated Row\nBicep Curls' },
+    { name: 'Lower Body', exercises: 'Squats\nRomanian Deadlift\nLeg Press\nLeg Curl\nCalf Raises' },
+  ],
+  'Full Body': [
+    { name: 'Full Body A', exercises: 'Squats\nBench Press\nSeated Row\nShoulder Press\nPlank' },
+    { name: 'Full Body B', exercises: 'Deadlift\nIncline Dumbbell Press\nLat Pulldown\nLunges\nBicep Curls' },
+  ],
+}
 
 const sampleWorkouts = [
   { id: 'sample-1', name: 'Upper Body Strength', detail: 'Chest, shoulders & arms', date: 'Today', duration: '55 min', volume: '4,250 kg', exercises: [], sample: true },
@@ -88,6 +105,15 @@ function loadWorkouts() {
   }
 }
 
+function loadPlans() {
+  try {
+    const saved = localStorage.getItem(PLANS_KEY)
+    return saved ? JSON.parse(saved) : []
+  } catch {
+    return []
+  }
+}
+
 function calculateStreak(workouts) {
   const workoutDays = new Set(
     workouts.map(getWorkoutDateKey).filter(Boolean),
@@ -128,6 +154,20 @@ function App() {
   const [sortOrder, setSortOrder] = useState('newest')
   const [historyFilter, setHistoryFilter] = useState('all')
   const importInputRef = useRef(null)
+
+  // Personalized workout plan state
+  const [plans, setPlans] = useState(loadPlans)
+  const [activePlanId, setActivePlanId] = useState(null)
+  const [showPlanBuilder, setShowPlanBuilder] = useState(false)
+  const [planName, setPlanName] = useState('')
+  const [planTemplate, setPlanTemplate] = useState('Push / Pull / Legs')
+  const [planDays, setPlanDays] = useState(
+    PLAN_TEMPLATES['Push / Pull / Legs'].map(day => ({
+      ...day,
+      id: crypto.randomUUID(),
+      completedDates: [],
+    })),
+  )
 
   const realWorkouts = workouts.filter(workout => !workout.sample)
 
@@ -201,6 +241,146 @@ function App() {
       )
     })
 
+  // Save workout plans
+  function persistPlans(updated) {
+    try {
+      localStorage.setItem(PLANS_KEY, JSON.stringify(updated))
+      setPlans(updated)
+      return true
+    } catch {
+      setNotice('Could not save workout plans. Check browser storage.')
+      return false
+    }
+  }
+
+  function startPlanBuilder() {
+    setPlanName('')
+    setPlanTemplate('Push / Pull / Legs')
+    setPlanDays(
+      PLAN_TEMPLATES['Push / Pull / Legs'].map(day => ({
+        ...day,
+        id: crypto.randomUUID(),
+        completedDates: [],
+      })),
+    )
+    setShowPlanBuilder(true)
+    setNotice('')
+  }
+
+  function changePlanTemplate(value) {
+    setPlanTemplate(value)
+    const templateDays = PLAN_TEMPLATES[value] || [
+      { name: 'Day 1', exercises: '' },
+    ]
+
+    setPlanDays(
+      templateDays.map(day => ({
+        ...day,
+        id: crypto.randomUUID(),
+        completedDates: [],
+      })),
+    )
+  }
+
+  function updatePlanDay(id, field, value) {
+    setPlanDays(current =>
+      current.map(day =>
+        day.id === id ? { ...day, [field]: value } : day,
+      ),
+    )
+  }
+
+  function addPlanDay() {
+    setPlanDays(current => [
+      ...current,
+      {
+        id: crypto.randomUUID(),
+        name: `Day ${current.length + 1}`,
+        exercises: '',
+        completedDates: [],
+      },
+    ])
+  }
+
+  function savePlan(event) {
+    event.preventDefault()
+
+    if (!planName.trim()) {
+      setNotice('Enter a name for your workout plan.')
+      return
+    }
+
+    const validDays = planDays.filter(day => day.name.trim())
+
+    if (!validDays.length) {
+      setNotice('Add at least one training day.')
+      return
+    }
+
+    const plan = {
+      id: crypto.randomUUID(),
+      name: planName.trim(),
+      split: planTemplate,
+      createdAt: new Date().toISOString(),
+      days: validDays.map(day => ({
+        ...day,
+        name: day.name.trim(),
+        exercises: day.exercises
+          .split('\n')
+          .map(item => item.trim())
+          .filter(Boolean),
+        completedDates: day.completedDates || [],
+      })),
+    }
+
+    if (persistPlans([...plans, plan])) {
+      setActivePlanId(plan.id)
+      setShowPlanBuilder(false)
+      setNotice('Workout plan created successfully.')
+    }
+  }
+
+  function togglePlanDay(planId, dayId) {
+    const today = localDateKey()
+
+    const updated = plans.map(plan =>
+      plan.id !== planId
+        ? plan
+        : {
+            ...plan,
+            days: plan.days.map(day => {
+              if (day.id !== dayId) return day
+
+              const dates = day.completedDates || []
+
+              return {
+                ...day,
+                completedDates: dates.includes(today)
+                  ? dates.filter(date => date !== today)
+                  : [...dates, today],
+              }
+            }),
+          },
+    )
+
+    persistPlans(updated)
+  }
+
+  function deletePlan(planId) {
+    const plan = plans.find(item => item.id === planId)
+
+    if (!plan || !window.confirm(`Delete the plan "${plan.name}"?`)) {
+      return
+    }
+
+    const updated = plans.filter(item => item.id !== planId)
+
+    if (persistPlans(updated) && activePlanId === planId) {
+      setActivePlanId(updated[0]?.id || null)
+    }
+  }
+
+  // Save workout records
   function persistWorkouts(updated) {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
@@ -433,10 +613,12 @@ function App() {
         </div>
 
         <div className="sidebar-label">WORKSPACE</div>
+
         <nav className="side-nav">
           <a className="nav-item active" href="#overview">Overview</a>
           <a className="nav-item" href="#history">Workout history</a>
           <a className="nav-item" href="#progress">Progress</a>
+          <a className="nav-item" href="#plans">Workout plans</a>
         </nav>
 
         <div className="sidebar-bottom">
@@ -455,6 +637,7 @@ function App() {
             <h1>Training overview</h1>
             <p className="page-subtitle">Track your work. Build consistency.</p>
           </div>
+
           <button className="primary-button" onClick={openLogger}>
             + Log workout
           </button>
@@ -463,7 +646,8 @@ function App() {
         <section className="stats-grid" id="overview">
           <article className="stat-card">
             <div className="stat-top">
-              <span>Total workouts</span><span className="stat-icon">↗</span>
+              <span>Total workouts</span>
+              <span className="stat-icon">↗</span>
             </div>
             <div className="stat-number">{realWorkouts.length}</div>
             <div className="stat-foot">Saved training sessions</div>
@@ -471,7 +655,8 @@ function App() {
 
           <article className="stat-card">
             <div className="stat-top">
-              <span>Training time</span><span className="stat-icon">◷</span>
+              <span>Training time</span>
+              <span className="stat-icon">◷</span>
             </div>
             <div className="stat-number">
               {Math.floor(totalMinutes / 60)}
@@ -484,7 +669,8 @@ function App() {
 
           <article className="stat-card">
             <div className="stat-top">
-              <span>Total volume</span><span className="stat-icon">▤</span>
+              <span>Total volume</span>
+              <span className="stat-icon">▤</span>
             </div>
             <div className="stat-number">
               {totalVolume.toLocaleString('en-US')}
@@ -495,7 +681,8 @@ function App() {
 
           <article className="stat-card">
             <div className="stat-top">
-              <span>Current streak</span><span className="stat-icon">✳</span>
+              <span>Current streak</span>
+              <span className="stat-icon">✳</span>
             </div>
             <div className="stat-number">
               {currentStreak}<span className="stat-unit"> days</span>
@@ -532,6 +719,7 @@ function App() {
                 </div>
               ))}
             </div>
+
             <div className="chart-caption">
               Activity is calculated from your saved workouts.
             </div>
@@ -587,6 +775,136 @@ function App() {
           </article>
         </section>
 
+        {/* PERSONALIZED WORKOUT PLANS */}
+        <section className="panel plans-panel" id="plans">
+          <div className="history-heading">
+            <div>
+              <div className="eyebrow">STRUCTURED TRAINING</div>
+              <h2>Personal workout plans</h2>
+              <p className="history-subtitle">
+                Build your split, assign exercises, and track completed sessions.
+              </p>
+            </div>
+            <button className="primary-button" onClick={startPlanBuilder}>
+              + Create plan
+            </button>
+          </div>
+
+          {plans.length === 0 ? (
+            <div className="plans-empty">
+              <h3>Your training plan starts here.</h3>
+              <p>
+                Create a Push/Pull/Legs, Upper/Lower, Full Body, or custom plan.
+              </p>
+              <button className="secondary-button" onClick={startPlanBuilder}>
+                Build your first plan
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="plan-tabs">
+                {plans.map(plan => (
+                  <button
+                    key={plan.id}
+                    className={
+                      activePlanId === plan.id ||
+                      (!activePlanId && plans[0].id === plan.id)
+                        ? 'plan-tab active'
+                        : 'plan-tab'
+                    }
+                    onClick={() => setActivePlanId(plan.id)}
+                  >
+                    {plan.name}
+                  </button>
+                ))}
+              </div>
+
+              {(() => {
+                const activePlan =
+                  plans.find(plan => plan.id === activePlanId) || plans[0]
+
+                if (!activePlan) return null
+
+                const completedCount = activePlan.days.filter(day =>
+                  (day.completedDates || []).includes(localDateKey()),
+                ).length
+
+                return (
+                  <div className="active-plan">
+                    <div className="active-plan-heading">
+                      <div>
+                        <span className="panel-tag">{activePlan.split}</span>
+                        <h3>{activePlan.name}</h3>
+                        <p>
+                          {completedCount} of {activePlan.days.length} sessions completed today
+                        </p>
+                      </div>
+                      <button
+                        className="clear-button"
+                        onClick={() => deletePlan(activePlan.id)}
+                      >
+                        Delete plan
+                      </button>
+                    </div>
+
+                    <div className="plan-day-grid">
+                      {activePlan.days.map((day, index) => {
+                        const completed = (day.completedDates || []).includes(
+                          localDateKey(),
+                        )
+
+                        return (
+                          <article
+                            className={
+                              completed
+                                ? 'plan-day-card completed'
+                                : 'plan-day-card'
+                            }
+                            key={day.id}
+                          >
+                            <div className="plan-day-top">
+                              <span>DAY {String(index + 1).padStart(2, '0')}</span>
+                              {completed && (
+                                <span className="plan-complete-label">
+                                  COMPLETED
+                                </span>
+                              )}
+                            </div>
+
+                            <h4>{day.name}</h4>
+
+                            <ul>
+                              {day.exercises.map((exercise, exerciseIndex) => (
+                                <li key={`${day.id}-${exerciseIndex}`}>
+                                  {exercise}
+                                </li>
+                              ))}
+                            </ul>
+
+                            <button
+                              className={
+                                completed
+                                  ? 'plan-complete-button done'
+                                  : 'plan-complete-button'
+                              }
+                              onClick={() =>
+                                togglePlanDay(activePlan.id, day.id)
+                              }
+                            >
+                              {completed ? 'Undo completion' : 'Mark completed'}
+                            </button>
+                          </article>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })()}
+            </>
+          )}
+        </section>
+
+        {/* WORKOUT HISTORY */}
         <section className="panel history-panel" id="history">
           <div className="history-heading">
             <div>
@@ -640,7 +958,9 @@ function App() {
                   <div className="workout-info">
                     <h3>{workout.name}</h3>
                     <p>{workout.detail || 'Workout session'}</p>
-                    {workout.sample && <span className="demo-label">DEMO DATA</span>}
+                    {workout.sample && (
+                      <span className="demo-label">DEMO DATA</span>
+                    )}
                   </div>
 
                   <div className="workout-date">{workout.date}</div>
@@ -676,7 +996,9 @@ function App() {
                 </article>
               ))
             ) : (
-              <div className="empty-history">No workouts match your search.</div>
+              <div className="empty-history">
+                No workouts match your search.
+              </div>
             )}
           </div>
 
@@ -714,7 +1036,11 @@ function App() {
           {notice && (
             <div className="backup-notice" role="status">
               <span>{notice}</span>
-              <button type="button" onClick={() => setNotice('')} aria-label="Dismiss message">
+              <button
+                type="button"
+                onClick={() => setNotice('')}
+                aria-label="Dismiss message"
+              >
                 ×
               </button>
             </div>
@@ -722,11 +1048,136 @@ function App() {
         </section>
 
         <footer className="app-footer">
-          <span>ZENTRAQ FORGE <span className="footer-separator">/</span> TRAIN WITH INTENTION</span>
+          <span>
+            ZENTRAQ FORGE <span className="footer-separator">/</span> TRAIN WITH INTENTION
+          </span>
           <span>PERSONAL WORKSPACE</span>
         </footer>
       </main>
 
+      {/* CREATE WORKOUT PLAN MODAL */}
+      {showPlanBuilder && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={event => {
+            if (event.target === event.currentTarget) {
+              setShowPlanBuilder(false)
+            }
+          }}
+        >
+          <section
+            className="workout-modal plan-builder-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="plan-builder-title"
+          >
+            <div className="modal-heading">
+              <div>
+                <div className="eyebrow">CUSTOM TRAINING SPLIT</div>
+                <h2 id="plan-builder-title">Create workout plan</h2>
+              </div>
+
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setShowPlanBuilder(false)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={savePlan}>
+              <label className="form-label">
+                Plan name
+                <input
+                  value={planName}
+                  onChange={event => setPlanName(event.target.value)}
+                  placeholder="e.g. My 5-day strength plan"
+                  required
+                />
+              </label>
+
+              <label className="form-label">
+                Starting template
+                <select
+                  value={planTemplate}
+                  onChange={event => changePlanTemplate(event.target.value)}
+                >
+                  {Object.keys(PLAN_TEMPLATES).map(template => (
+                    <option key={template} value={template}>
+                      {template}
+                    </option>
+                  ))}
+                  <option value="Custom">Custom</option>
+                </select>
+              </label>
+
+              <div className="exercise-section-heading">
+                <h3>Training days</h3>
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={addPlanDay}
+                >
+                  + Add day
+                </button>
+              </div>
+
+              <div className="plan-builder-days">
+                {planDays.map((day, index) => (
+                  <div className="exercise-card" key={day.id}>
+                    <div className="exercise-card-heading">
+                      <span>DAY {String(index + 1).padStart(2, '0')}</span>
+                    </div>
+
+                    <label className="form-label">
+                      Day name
+                      <input
+                        value={day.name}
+                        onChange={event =>
+                          updatePlanDay(day.id, 'name', event.target.value)
+                        }
+                        placeholder="e.g. Chest & Triceps"
+                        required
+                      />
+                    </label>
+
+                    <label className="form-label">
+                      Exercises (one per line)
+                      <textarea
+                        rows="4"
+                        value={day.exercises}
+                        onChange={event =>
+                          updatePlanDay(day.id, 'exercises', event.target.value)
+                        }
+                        placeholder={'Bench Press\nIncline Dumbbell Press\nTriceps Pushdown'}
+                      />
+                    </label>
+                  </div>
+                ))}
+              </div>
+
+              {notice && <p className="form-notice">{notice}</p>}
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setShowPlanBuilder(false)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="primary-button">
+                  Save plan
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {/* WORKOUT LOGGER MODAL */}
       {showLogger && (
         <div
           className="modal-backdrop"
@@ -752,6 +1203,7 @@ function App() {
                   {editingWorkoutId ? 'Edit workout' : 'Log a workout'}
                 </h2>
               </div>
+
               <button
                 type="button"
                 className="modal-close"
@@ -789,7 +1241,11 @@ function App() {
 
               <div className="exercise-section-heading">
                 <h3>Exercises</h3>
-                <button type="button" className="text-button" onClick={addExercise}>
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={addExercise}
+                >
                   + Add exercise
                 </button>
               </div>
@@ -799,6 +1255,7 @@ function App() {
                   <div className="exercise-card" key={exercise.id}>
                     <div className="exercise-card-heading">
                       <span>EXERCISE {String(index + 1).padStart(2, '0')}</span>
+
                       {exercises.length > 1 && (
                         <button
                           type="button"
@@ -876,6 +1333,7 @@ function App() {
                 >
                   Cancel
                 </button>
+
                 <button type="submit" className="primary-button">
                   {editingWorkoutId ? 'Save changes' : 'Save workout'}
                 </button>
