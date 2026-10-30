@@ -1,4 +1,3 @@
-
 import { useRef, useState } from 'react'
 import './App.css'
 
@@ -153,6 +152,8 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('')
   const [sortOrder, setSortOrder] = useState('newest')
   const [historyFilter, setHistoryFilter] = useState('all')
+  const [selectedExercise, setSelectedExercise] = useState('')
+
   const importInputRef = useRef(null)
 
   // Personalized workout plan state
@@ -240,6 +241,35 @@ function App() {
         (b.sample ? 1 : -1)
       )
     })
+
+  // Exercise history data
+  const exerciseNames = [...new Map(
+    realWorkouts
+      .flatMap(workout => (workout.exercises || []).filter(exercise => exercise.name?.trim()))
+      .map(exercise => [exercise.name.trim().toLowerCase(), exercise.name.trim()]),
+  ).values()].sort((a, b) => a.localeCompare(b))
+
+  const activeExercise = exerciseNames.includes(selectedExercise)
+    ? selectedExercise
+    : exerciseNames[0] || ''
+
+  const exerciseHistory = realWorkouts
+    .flatMap(workout =>
+      (workout.exercises || [])
+        .filter(exercise => exercise.name?.trim().toLowerCase() === activeExercise.toLowerCase())
+        .map(exercise => ({
+          id: `${workout.id}-${exercise.id || exercise.name}`,
+          workoutId: workout.id,
+          workoutName: workout.name,
+          date: workout.date,
+          dateISO: getWorkoutDateKey(workout) || '',
+          sets: Number(exercise.sets) || 0,
+          reps: Number(exercise.reps) || 0,
+          weight: Number(exercise.weight) || 0,
+          volume: (Number(exercise.sets) || 0) * (Number(exercise.reps) || 0) * (Number(exercise.weight) || 0),
+        })),
+    )
+    .sort((a, b) => b.dateISO.localeCompare(a.dateISO))
 
   // Save workout plans
   function persistPlans(updated) {
@@ -773,6 +803,78 @@ function App() {
               Record a session <span>↗</span>
             </button>
           </article>
+        </section>
+
+        {/* EXERCISE HISTORY */}
+        <section className="panel exercise-history-panel" id="exercise-history">
+          <div className="history-heading">
+            <div>
+              <div className="eyebrow">EXERCISE BREAKDOWN</div>
+              <h2>Exercise history</h2>
+              <p className="history-subtitle">
+                Select an exercise to review every saved session where you performed it.
+              </p>
+            </div>
+
+            {exerciseNames.length > 0 && (
+              <label className="exercise-history-select-label">
+                <span>EXERCISE</span>
+                <select
+                  value={activeExercise}
+                  onChange={event => setSelectedExercise(event.target.value)}
+                  aria-label="Select exercise history"
+                >
+                  {exerciseNames.map(name => (
+                    <option value={name} key={name}>{name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
+
+          {activeExercise ? (
+            <>
+              <div className="exercise-history-summary">
+                <div>
+                  <strong>{exerciseHistory.length}</strong>
+                  <span>SESSIONS</span>
+                </div>
+                <div>
+                  <strong>
+                    {exerciseHistory.reduce((total, entry) => total + entry.volume, 0).toLocaleString('en-US')} kg
+                  </strong>
+                  <span>TOTAL VOLUME</span>
+                </div>
+              </div>
+
+              <div className="exercise-history-list">
+                {exerciseHistory.map(entry => (
+                  <article className="exercise-history-row" key={entry.id}>
+                    <div className="exercise-history-main">
+                      <strong>{entry.workoutName}</strong>
+                      <span>{entry.date}</span>
+                    </div>
+                    <div className="exercise-history-metric">
+                      <strong>{entry.sets} × {entry.reps}</strong>
+                      <span>SETS × REPS</span>
+                    </div>
+                    <div className="exercise-history-metric">
+                      <strong>{entry.weight.toLocaleString('en-US')} kg</strong>
+                      <span>WEIGHT</span>
+                    </div>
+                    <div className="exercise-history-metric">
+                      <strong>{entry.volume.toLocaleString('en-US')} kg</strong>
+                      <span>SESSION VOLUME</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="progress-empty">
+              Log a workout with exercises to build your exercise history.
+            </div>
+          )}
         </section>
 
         {/* PERSONALIZED WORKOUT PLANS */}
