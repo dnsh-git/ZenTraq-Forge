@@ -481,3 +481,149 @@ h2 { margin: 0; font: 600 19px 'Space Grotesk', sans-serif; }
     justify-content: flex-start;
   }
 }
+
+.plans-panel {
+  min-width: 0;
+}
+
+.plans-empty {
+  padding: 35px 15px;
+  text-align: center;
+  border: 1px dashed #343b33;
+  border-radius: 7px;
+}
+
+.plans-empty h3 {
+  color: #dce7d2;
+  margin-bottom: 8px;
+}
+
+.plans-empty p {
+  color: #899184;
+  font-size: 13px;
+  margin-bottom: 18px;
+}
+
+.plan-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 22px 0;
+}
+
+.plan-tab {
+  padding: 9px 14px;
+  border: 1px solid #343b33;
+  border-radius: 5px;
+  background: transparent;
+  color: #a8b09f;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.plan-tab.active {
+  color: #c4f36b;
+  border-color: #c4f36b;
+  background: #242d1d;
+}
+
+.active-plan-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 15px;
+  margin-bottom: 18px;
+}
+
+.active-plan-heading h3 {
+  color: #e0e8d8;
+  margin: 10px 0 5px;
+}
+
+.active-plan-heading p {
+  color: #899184;
+  font-size: 12px;
+}
+
+.plan-day-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.plan-day-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #343b33;
+  border-radius: 7px;
+  background: #1b2119;
+}
+
+.plan-day-card.completed {
+  border-color: #829e50;
+}
+
+.plan-day-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #899184;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+.plan-complete-label {
+  color: #c4f36b;
+}
+
+.plan-day-card h4 {
+  color: #e0e8d8;
+  margin: 13px 0;
+  font-size: 16px;
+}
+
+.plan-day-card ul {
+  flex: 1;
+  padding-left: 17px;
+  margin: 0 0 18px;
+  color: #a8b09f;
+  font-size: 12px;
+  line-height: 1.9;
+}
+
+.plan-complete-button {
+  padding: 9px 12px;
+  border: 1px solid #c4f36b;
+  border-radius: 5px;
+  background: transparent;
+  color: #c4f36b;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.plan-complete-button.done {
+  background: #c4f36b;
+  color: #172016;
+}
+
+.plan-builder-days {
+  display: grid;
+  gap: 12px;
+}
+
+.plan-builder-modal {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+@media (max-width: 600px) {
+  .active-plan-heading {
+    flex-direction: column;
+  }
+
+  .plan-day-grid {
+    grid-template-columns: 1fr;
+  }
+}
