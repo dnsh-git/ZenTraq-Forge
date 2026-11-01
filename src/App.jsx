@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react'
-import './App.css'
 
-const STORAGE_KEY = 'zentraq-workouts'
-const PLANS_KEY = 'zentraq-workout-plans'
+import { useRef, useState } from 'react';
+import './App.css';
+
+const STORAGE_KEY = 'zentraq-workouts';
+const PLANS_KEY = 'zentraq-workout-plans';
 
 const PLAN_TEMPLATES = {
   'Push / Pull / Legs': [
@@ -18,71 +19,71 @@ const PLAN_TEMPLATES = {
     { name: 'Full Body A', exercises: 'Squats\nBench Press\nSeated Row\nShoulder Press\nPlank' },
     { name: 'Full Body B', exercises: 'Deadlift\nIncline Dumbbell Press\nLat Pulldown\nLunges\nBicep Curls' },
   ],
-}
+};
 
 const sampleWorkouts = [
   { id: 'sample-1', name: 'Upper Body Strength', detail: 'Chest, shoulders & arms', date: 'Today', duration: '55 min', volume: '4,250 kg', exercises: [], sample: true },
   { id: 'sample-2', name: 'Leg Day', detail: 'Quads, hamstrings & calves', date: 'Yesterday', duration: '48 min', volume: '6,800 kg', exercises: [], sample: true },
   { id: 'sample-3', name: 'Pull Day', detail: 'Back & biceps', date: 'Oct 26', duration: '52 min', volume: '3,950 kg', exercises: [], sample: true },
-]
+];
 
-const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 function localDateKey(date = new Date()) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function formatDate(date = new Date()) {
   return date.toLocaleDateString('en-GB', {
     day: '2-digit',
     month: 'short',
-  })
+  });
 }
 
 function getWeekDays() {
-  const today = new Date()
-  const monday = new Date(today)
-  monday.setDate(today.getDate() - ((today.getDay() + 6) % 7))
-  monday.setHours(0, 0, 0, 0)
+  const today = new Date();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+  monday.setHours(0, 0, 0, 0);
 
   return DAY_NAMES.map((day, index) => {
-    const date = new Date(monday)
-    date.setDate(monday.getDate() + index)
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + index);
 
     return {
       day,
       dateKey: localDateKey(date),
       isToday: localDateKey(date) === localDateKey(today),
-    }
-  })
+    };
+  });
 }
 
 function getWorkoutDateKey(workout) {
-  if (workout.dateISO) return workout.dateISO
-  if (!workout.date || workout.sample) return null
+  if (workout.dateISO) return workout.dateISO;
+  if (!workout.date || workout.sample) return null;
 
-  const match = workout.date.match(/^(\d{1,2})\s+([A-Za-z]{3})$/)
-  if (!match) return null
+  const match = workout.date.match(/^(\d{1,2})\s+([A-Za-z]{3})$/);
+  if (!match) return null;
 
   const months = {
     Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
     Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
-  }
+  };
 
-  const month = months[match[2]]
-  if (month === undefined) return null
+  const month = months[match[2]];
+  if (month === undefined) return null;
 
-  const now = new Date()
-  let year = now.getFullYear()
+  const now = new Date();
+  let year = now.getFullYear();
 
   if (new Date(year, month, Number(match[1])) > now && month === 11 && now.getMonth() === 0) {
-    year -= 1
+    year -= 1;
   }
 
-  return localDateKey(new Date(year, month, Number(match[1])))
+  return localDateKey(new Date(year, month, Number(match[1])));
 }
 
 function emptyExercise() {
@@ -92,171 +93,169 @@ function emptyExercise() {
     sets: '3',
     reps: '10',
     weight: '0',
-  }
+  };
 }
 
 function loadWorkouts() {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    return saved ? JSON.parse(saved) : sampleWorkouts
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : sampleWorkouts;
   } catch {
-    return sampleWorkouts
+    return sampleWorkouts;
   }
 }
 
 function loadPlans() {
   try {
-    const saved = localStorage.getItem(PLANS_KEY)
-    return saved ? JSON.parse(saved) : []
+    const saved = localStorage.getItem(PLANS_KEY);
+    return saved ? JSON.parse(saved) : [];
   } catch {
-    return []
+    return [];
   }
 }
 
 function calculateStreak(workouts) {
-  const workoutDays = new Set(
-    workouts.map(getWorkoutDateKey).filter(Boolean),
-  )
-
-  const today = new Date()
-  const todayKey = localDateKey(today)
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
-  const yesterdayKey = localDateKey(yesterday)
+  const workoutDays = new Set(workouts.map(getWorkoutDateKey).filter(Boolean));
+  const today = new Date();
+  const todayKey = localDateKey(today);
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayKey = localDateKey(yesterday);
 
   if (!workoutDays.has(todayKey) && !workoutDays.has(yesterdayKey)) {
-    return 0
+    return 0;
   }
 
-  let streak = 0
-  const currentDay = new Date(
-    workoutDays.has(todayKey) ? today : yesterday,
-  )
+  let streak = 0;
+  const currentDay = new Date(workoutDays.has(todayKey) ? today : yesterday);
 
   while (workoutDays.has(localDateKey(currentDay))) {
-    streak += 1
-    currentDay.setDate(currentDay.getDate() - 1)
+    streak += 1;
+    currentDay.setDate(currentDay.getDate() - 1);
   }
 
-  return streak
+  return streak;
 }
 
 function App() {
-  const [workouts, setWorkouts] = useState(loadWorkouts)
-  const [showLogger, setShowLogger] = useState(false)
-  const [editingWorkoutId, setEditingWorkoutId] = useState(null)
-  const [workoutName, setWorkoutName] = useState('')
-  const [duration, setDuration] = useState('45')
-  const [exercises, setExercises] = useState([emptyExercise()])
-  const [notice, setNotice] = useState('')
-  const [searchTerm, setSearchTerm] = useState('')
-  const [sortOrder, setSortOrder] = useState('newest')
-  const [historyFilter, setHistoryFilter] = useState('all')
-  const [selectedExercise, setSelectedExercise] = useState('')
-
-  const importInputRef = useRef(null)
+  const [workouts, setWorkouts] = useState(loadWorkouts);
+  const [showLogger, setShowLogger] = useState(false);
+  const [editingWorkoutId, setEditingWorkoutId] = useState(null);
+  const [workoutName, setWorkoutName] = useState('');
+  const [duration, setDuration] = useState('45');
+  const [exercises, setExercises] = useState([emptyExercise()]);
+  const [notice, setNotice] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortOrder, setSortOrder] = useState('newest');
+  const [historyFilter, setHistoryFilter] = useState('all');
+  const [selectedExercise, setSelectedExercise] = useState('');
+  const importInputRef = useRef(null);
 
   // Personalized workout plan state
-  const [plans, setPlans] = useState(loadPlans)
-  const [activePlanId, setActivePlanId] = useState(null)
-  const [showPlanBuilder, setShowPlanBuilder] = useState(false)
-  const [planName, setPlanName] = useState('')
-  const [planTemplate, setPlanTemplate] = useState('Push / Pull / Legs')
+  const [plans, setPlans] = useState(loadPlans);
+  const [activePlanId, setActivePlanId] = useState(null);
+  const [showPlanBuilder, setShowPlanBuilder] = useState(false);
+  const [planName, setPlanName] = useState('');
+  const [planTemplate, setPlanTemplate] = useState('Push / Pull / Legs');
   const [planDays, setPlanDays] = useState(
     PLAN_TEMPLATES['Push / Pull / Legs'].map(day => ({
       ...day,
       id: crypto.randomUUID(),
       completedDates: [],
-    })),
-  )
+    }))
+  );
 
-  const realWorkouts = workouts.filter(workout => !workout.sample)
+  const realWorkouts = workouts.filter(workout => !workout.sample);
 
   const totalMinutes = realWorkouts.reduce(
     (total, workout) => total + (Number.parseInt(workout.duration, 10) || 0),
-    0,
-  )
+    0
+  );
 
   const totalVolume = realWorkouts.reduce(
     (total, workout) =>
       total + (Number(String(workout.volume || '').replace(/[^0-9.]/g, '')) || 0),
-    0,
-  )
+    0
+  );
 
-  const currentStreak = calculateStreak(realWorkouts)
+  const currentStreak = calculateStreak(realWorkouts);
 
   const weeklyActivity = getWeekDays().map(day => ({
     ...day,
     count: realWorkouts.filter(
-      workout => getWorkoutDateKey(workout) === day.dateKey,
+      workout => getWorkoutDateKey(workout) === day.dateKey
     ).length,
-  }))
+  }));
 
-  const maxActivity = Math.max(
-    1,
-    ...weeklyActivity.map(day => day.count),
-  )
+  const maxActivity = Math.max(1, ...weeklyActivity.map(day => day.count));
 
   const volumeProgress = [...realWorkouts]
     .sort((a, b) =>
-      (getWorkoutDateKey(a) || '').localeCompare(getWorkoutDateKey(b) || ''),
+      (getWorkoutDateKey(a) || '').localeCompare(getWorkoutDateKey(b) || '')
     )
     .slice(-7)
     .map(workout => ({
       id: workout.id,
       date: workout.date,
       volume: Number(String(workout.volume || '').replace(/[^0-9.]/g, '')) || 0,
-    }))
+    }));
 
   const maxVolumeProgress = Math.max(
     1,
-    ...volumeProgress.map(workout => workout.volume),
-  )
+    ...volumeProgress.map(workout => workout.volume)
+  );
 
   const filteredWorkouts = [...workouts]
     .filter(workout => {
       const matchesSearch =
         workout.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (workout.detail || '').toLowerCase().includes(searchTerm.toLowerCase())
+        (workout.detail || '').toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesFilter =
         historyFilter === 'all' ||
         (historyFilter === 'saved' && !workout.sample) ||
-        (historyFilter === 'demo' && workout.sample)
+        (historyFilter === 'demo' && workout.sample);
 
-      return matchesSearch && matchesFilter
+      return matchesSearch && matchesFilter;
     })
     .sort((a, b) => {
-      if (sortOrder === 'name') return a.name.localeCompare(b.name)
+      if (sortOrder === 'name') return a.name.localeCompare(b.name);
 
       if (sortOrder === 'duration') {
         return (
           (Number.parseInt(b.duration, 10) || 0) -
           (Number.parseInt(a.duration, 10) || 0)
-        )
+        );
       }
 
       return (
         (getWorkoutDateKey(b) || '').localeCompare(getWorkoutDateKey(a) || '') ||
         (b.sample ? 1 : -1)
-      )
-    })
+      );
+    });
 
-  // Exercise history data
   const exerciseNames = [...new Map(
     realWorkouts
-      .flatMap(workout => (workout.exercises || []).filter(exercise => exercise.name?.trim()))
-      .map(exercise => [exercise.name.trim().toLowerCase(), exercise.name.trim()]),
-  ).values()].sort((a, b) => a.localeCompare(b))
+      .flatMap(workout =>
+        (workout.exercises || []).filter(exercise => exercise.name?.trim())
+      )
+      .map(exercise => [
+        exercise.name.trim().toLowerCase(),
+        exercise.name.trim(),
+      ])
+  ).values()].sort((a, b) => a.localeCompare(b));
 
   const activeExercise = exerciseNames.includes(selectedExercise)
     ? selectedExercise
-    : exerciseNames[0] || ''
+    : exerciseNames[0] || '';
 
   const exerciseHistory = realWorkouts
     .flatMap(workout =>
       (workout.exercises || [])
-        .filter(exercise => exercise.name?.trim().toLowerCase() === activeExercise.toLowerCase())
+        .filter(
+          exercise =>
+            exercise.name?.trim().toLowerCase() === activeExercise.toLowerCase()
+        )
         .map(exercise => ({
           id: `${workout.id}-${exercise.id || exercise.name}`,
           workoutId: workout.id,
@@ -266,58 +265,109 @@ function App() {
           sets: Number(exercise.sets) || 0,
           reps: Number(exercise.reps) || 0,
           weight: Number(exercise.weight) || 0,
-          volume: (Number(exercise.sets) || 0) * (Number(exercise.reps) || 0) * (Number(exercise.weight) || 0),
-        })),
+          volume:
+            (Number(exercise.sets) || 0) *
+            (Number(exercise.reps) || 0) *
+            (Number(exercise.weight) || 0),
+        }))
     )
-    .sort((a, b) => b.dateISO.localeCompare(a.dateISO))
+    .sort((a, b) => b.dateISO.localeCompare(a.dateISO));
+
+  // Personal records are calculated from saved workouts.
+  // Editing or deleting a workout automatically recalculates the records.
+  const personalRecords = exerciseNames.map(name => {
+    const sessions = realWorkouts.flatMap(workout =>
+      (workout.exercises || [])
+        .filter(
+          exercise =>
+            exercise.name?.trim().toLowerCase() === name.toLowerCase()
+        )
+        .map(exercise => {
+          const sets = Number(exercise.sets) || 0;
+          const reps = Number(exercise.reps) || 0;
+          const weight = Number(exercise.weight) || 0;
+
+          return {
+            workoutName: workout.name,
+            date: workout.date,
+            dateISO: getWorkoutDateKey(workout) || '',
+            sets,
+            reps,
+            weight,
+            volume: sets * reps * weight,
+          };
+        })
+    );
+
+    const latestFirst = [...sessions].sort(
+      (a, b) => b.dateISO.localeCompare(a.dateISO)
+    );
+
+    const best = selector =>
+      latestFirst.reduce(
+        (record, session) =>
+          !record || selector(session) > selector(record)
+            ? session
+            : record,
+        null
+      );
+
+    return {
+      name,
+      sessions: sessions.length,
+      heaviest: best(session => session.weight),
+      mostReps: best(session => session.reps),
+      highestVolume: best(session => session.volume),
+    };
+  }).filter(record => record.sessions > 0);
 
   // Save workout plans
   function persistPlans(updated) {
     try {
-      localStorage.setItem(PLANS_KEY, JSON.stringify(updated))
-      setPlans(updated)
-      return true
+      localStorage.setItem(PLANS_KEY, JSON.stringify(updated));
+      setPlans(updated);
+      return true;
     } catch {
-      setNotice('Could not save workout plans. Check browser storage.')
-      return false
+      setNotice('Could not save workout plans. Check browser storage.');
+      return false;
     }
   }
 
   function startPlanBuilder() {
-    setPlanName('')
-    setPlanTemplate('Push / Pull / Legs')
+    setPlanName('');
+    setPlanTemplate('Push / Pull / Legs');
     setPlanDays(
       PLAN_TEMPLATES['Push / Pull / Legs'].map(day => ({
         ...day,
         id: crypto.randomUUID(),
         completedDates: [],
-      })),
-    )
-    setShowPlanBuilder(true)
-    setNotice('')
+      }))
+    );
+    setShowPlanBuilder(true);
+    setNotice('');
   }
 
   function changePlanTemplate(value) {
-    setPlanTemplate(value)
+    setPlanTemplate(value);
     const templateDays = PLAN_TEMPLATES[value] || [
       { name: 'Day 1', exercises: '' },
-    ]
+    ];
 
     setPlanDays(
       templateDays.map(day => ({
         ...day,
         id: crypto.randomUUID(),
         completedDates: [],
-      })),
-    )
+      }))
+    );
   }
 
   function updatePlanDay(id, field, value) {
     setPlanDays(current =>
       current.map(day =>
-        day.id === id ? { ...day, [field]: value } : day,
-      ),
-    )
+        day.id === id ? { ...day, [field]: value } : day
+      )
+    );
   }
 
   function addPlanDay() {
@@ -329,22 +379,22 @@ function App() {
         exercises: '',
         completedDates: [],
       },
-    ])
+    ]);
   }
 
   function savePlan(event) {
-    event.preventDefault()
+    event.preventDefault();
 
     if (!planName.trim()) {
-      setNotice('Enter a name for your workout plan.')
-      return
+      setNotice('Enter a name for your workout plan.');
+      return;
     }
 
-    const validDays = planDays.filter(day => day.name.trim())
+    const validDays = planDays.filter(day => day.name.trim());
 
     if (!validDays.length) {
-      setNotice('Add at least one training day.')
-      return
+      setNotice('Add at least one training day.');
+      return;
     }
 
     const plan = {
@@ -361,17 +411,17 @@ function App() {
           .filter(Boolean),
         completedDates: day.completedDates || [],
       })),
-    }
+    };
 
     if (persistPlans([...plans, plan])) {
-      setActivePlanId(plan.id)
-      setShowPlanBuilder(false)
-      setNotice('Workout plan created successfully.')
+      setActivePlanId(plan.id);
+      setShowPlanBuilder(false);
+      setNotice('Workout plan created successfully.');
     }
   }
 
   function togglePlanDay(planId, dayId) {
-    const today = localDateKey()
+    const today = localDateKey();
 
     const updated = plans.map(plan =>
       plan.id !== planId
@@ -379,46 +429,46 @@ function App() {
         : {
             ...plan,
             days: plan.days.map(day => {
-              if (day.id !== dayId) return day
+              if (day.id !== dayId) return day;
 
-              const dates = day.completedDates || []
+              const dates = day.completedDates || [];
 
               return {
                 ...day,
                 completedDates: dates.includes(today)
                   ? dates.filter(date => date !== today)
                   : [...dates, today],
-              }
+              };
             }),
-          },
-    )
+          }
+    );
 
-    persistPlans(updated)
+    persistPlans(updated);
   }
 
   function deletePlan(planId) {
-    const plan = plans.find(item => item.id === planId)
+    const plan = plans.find(item => item.id === planId);
 
     if (!plan || !window.confirm(`Delete the plan "${plan.name}"?`)) {
-      return
+      return;
     }
 
-    const updated = plans.filter(item => item.id !== planId)
+    const updated = plans.filter(item => item.id !== planId);
 
     if (persistPlans(updated) && activePlanId === planId) {
-      setActivePlanId(updated[0]?.id || null)
+      setActivePlanId(updated[0]?.id || null);
     }
   }
 
   // Save workout records
   function persistWorkouts(updated) {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
-      setWorkouts(updated)
-      return true
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      setWorkouts(updated);
+      return true;
     } catch {
-      setNotice('Could not save changes. Check your browser storage settings.')
-      return false
+      setNotice('Could not save changes. Check your browser storage settings.');
+      return false;
     }
   }
 
@@ -429,41 +479,41 @@ function App() {
         version: 1,
         exportedAt: new Date().toISOString(),
         workouts: realWorkouts,
-      }
+      };
 
       const blob = new Blob(
         [JSON.stringify(backup, null, 2)],
-        { type: 'application/json' },
-      )
+        { type: 'application/json' }
+      );
 
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `zentraq-backup-${localDateKey()}.json`
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      URL.revokeObjectURL(url)
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `zentraq-backup-${localDateKey()}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
 
-      setNotice(`Backup exported: ${realWorkouts.length} saved workouts.`)
+      setNotice(`Backup exported: ${realWorkouts.length} saved workouts.`);
     } catch {
-      setNotice('Could not export your backup.')
+      setNotice('Could not export your backup.');
     }
   }
 
   async function importBackup(event) {
-    const file = event.target.files?.[0]
-    event.target.value = ''
+    const file = event.target.files?.[0];
+    event.target.value = '';
 
-    if (!file) return
+    if (!file) return;
 
     try {
-      const text = await file.text()
-      const parsed = JSON.parse(text)
-      const imported = Array.isArray(parsed) ? parsed : parsed.workouts
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const imported = Array.isArray(parsed) ? parsed : parsed.workouts;
 
       if (!Array.isArray(imported)) {
-        throw new Error('Invalid backup format.')
+        throw new Error('Invalid backup format.');
       }
 
       const valid = imported.every(workout =>
@@ -472,49 +522,49 @@ function App() {
         typeof workout.name === 'string' &&
         typeof workout.duration === 'string' &&
         typeof workout.volume === 'string' &&
-        Array.isArray(workout.exercises),
-      )
+        Array.isArray(workout.exercises)
+      );
 
       if (!valid) {
-        throw new Error('The file contains invalid workout records.')
+        throw new Error('The file contains invalid workout records.');
       }
 
       const cleaned = imported.map(workout => ({
         ...workout,
         sample: false,
-      }))
+      }));
 
       const confirmed = window.confirm(
-        `Import ${cleaned.length} workouts? This will replace your current saved workouts.`,
-      )
+        `Import ${cleaned.length} workouts? This will replace your current saved workouts.`
+      );
 
-      if (!confirmed) return
+      if (!confirmed) return;
 
       if (persistWorkouts(cleaned)) {
-        setNotice(`Successfully imported ${cleaned.length} workouts.`)
+        setNotice(`Successfully imported ${cleaned.length} workouts.`);
       }
     } catch (error) {
       setNotice(
         error instanceof SyntaxError
           ? 'This file is not valid JSON.'
-          : error.message || 'Could not import this backup.',
-      )
+          : error.message || 'Could not import this backup.'
+      );
     }
   }
 
   function openLogger() {
-    setEditingWorkoutId(null)
-    setWorkoutName('')
-    setDuration('45')
-    setExercises([emptyExercise()])
-    setNotice('')
-    setShowLogger(true)
+    setEditingWorkoutId(null);
+    setWorkoutName('');
+    setDuration('45');
+    setExercises([emptyExercise()]);
+    setNotice('');
+    setShowLogger(true);
   }
 
   function openEditLogger(workout) {
-    setEditingWorkoutId(workout.id)
-    setWorkoutName(workout.name)
-    setDuration(String(Number.parseInt(workout.duration, 10) || 45))
+    setEditingWorkoutId(workout.id);
+    setWorkoutName(workout.name);
+    setDuration(String(Number.parseInt(workout.duration, 10) || 45));
     setExercises(
       workout.exercises.length
         ? workout.exercises.map(exercise => ({
@@ -524,63 +574,63 @@ function App() {
             reps: String(exercise.reps ?? 10),
             weight: String(exercise.weight ?? 0),
           }))
-        : [emptyExercise()],
-    )
-    setNotice('')
-    setShowLogger(true)
+        : [emptyExercise()]
+    );
+    setNotice('');
+    setShowLogger(true);
   }
 
   function updateExercise(id, field, value) {
     setExercises(current =>
       current.map(exercise =>
-        exercise.id === id ? { ...exercise, [field]: value } : exercise,
-      ),
-    )
+        exercise.id === id ? { ...exercise, [field]: value } : exercise
+      )
+    );
   }
 
   function addExercise() {
-    setExercises(current => [...current, emptyExercise()])
+    setExercises(current => [...current, emptyExercise()]);
   }
 
   function removeExercise(id) {
     setExercises(current =>
       current.length > 1
         ? current.filter(exercise => exercise.id !== id)
-        : current,
-    )
+        : current
+    );
   }
 
   function saveWorkout(event) {
-    event.preventDefault()
-    setNotice('')
+    event.preventDefault();
+    setNotice('');
 
     if (!workoutName.trim()) {
-      setNotice('Enter a workout name first.')
-      return
+      setNotice('Enter a workout name first.');
+      return;
     }
 
     if (!duration || Number(duration) <= 0) {
-      setNotice('Enter a valid workout duration.')
-      return
+      setNotice('Enter a valid workout duration.');
+      return;
     }
 
-    const validExercises = exercises.filter(exercise => exercise.name.trim())
+    const validExercises = exercises.filter(exercise => exercise.name.trim());
 
     if (!validExercises.length) {
-      setNotice('Add at least one exercise with a name.')
-      return
+      setNotice('Add at least one exercise with a name.');
+      return;
     }
 
     const existingWorkout = realWorkouts.find(
-      workout => workout.id === editingWorkoutId,
-    )
+      workout => workout.id === editingWorkoutId
+    );
 
     const volume = validExercises.reduce((total, exercise) => {
       return total +
         (Number(exercise.sets) || 0) *
         (Number(exercise.reps) || 0) *
-        (Number(exercise.weight) || 0)
-    }, 0)
+        (Number(exercise.weight) || 0);
+    }, 0);
 
     const newWorkout = {
       id: existingWorkout?.id || crypto.randomUUID(),
@@ -595,43 +645,43 @@ function App() {
         name: exercise.name.trim(),
       })),
       sample: false,
-    }
+    };
 
     const updated = editingWorkoutId
       ? realWorkouts.map(workout =>
-          workout.id === editingWorkoutId ? newWorkout : workout,
+          workout.id === editingWorkoutId ? newWorkout : workout
         )
-      : [newWorkout, ...realWorkouts]
+      : [newWorkout, ...realWorkouts];
 
     if (persistWorkouts(updated)) {
-      setShowLogger(false)
-      setEditingWorkoutId(null)
-      setNotice('')
+      setShowLogger(false);
+      setEditingWorkoutId(null);
+      setNotice('');
     }
   }
 
   function deleteWorkout(id) {
-    const workout = realWorkouts.find(item => item.id === id)
-    if (!workout) return
+    const workout = realWorkouts.find(item => item.id === id);
+    if (!workout) return;
 
     if (!window.confirm(`Delete "${workout.name}"? This cannot be undone.`)) {
-      return
+      return;
     }
 
-    const updated = realWorkouts.filter(item => item.id !== id)
+    const updated = realWorkouts.filter(item => item.id !== id);
 
     if (persistWorkouts(updated)) {
-      setNotice('')
+      setNotice('');
     }
   }
 
   function clearWorkouts() {
     if (!window.confirm('Clear all saved workouts? This cannot be undone.')) {
-      return
+      return;
     }
 
     if (persistWorkouts([])) {
-      setNotice('')
+      setNotice('');
     }
   }
 
@@ -648,6 +698,7 @@ function App() {
           <a className="nav-item active" href="#overview">Overview</a>
           <a className="nav-item" href="#history">Workout history</a>
           <a className="nav-item" href="#progress">Progress</a>
+          <a className="nav-item" href="#personal-records">Personal records</a>
           <a className="nav-item" href="#plans">Workout plans</a>
         </nav>
 
@@ -877,6 +928,65 @@ function App() {
           )}
         </section>
 
+        {/* PERSONAL RECORDS */}
+        <section className="panel personal-records-panel" id="personal-records">
+          <div className="history-heading">
+            <div>
+              <div className="eyebrow">YOUR BEST PERFORMANCE</div>
+              <h2>Personal records</h2>
+              <p className="history-subtitle">
+                Your best lifts and exercise performances, calculated from saved sessions.
+              </p>
+            </div>
+            <span className="panel-tag">AUTO-UPDATED</span>
+          </div>
+
+          {personalRecords.length ? (
+            <div className="personal-records-grid">
+              {personalRecords.map(record => (
+                <article className="personal-record-card" key={record.name}>
+                  <div className="personal-record-card-heading">
+                    <h3>{record.name}</h3>
+                    <span>
+                      {record.sessions} {record.sessions === 1 ? 'SESSION' : 'SESSIONS'}
+                    </span>
+                  </div>
+
+                  <div className="personal-record-metrics">
+                    <div className="personal-record-metric">
+                      <span>HEAVIEST WEIGHT</span>
+                      <strong>
+                        {record.heaviest.weight.toLocaleString('en-US')} <small>kg</small>
+                      </strong>
+                      <p>{record.heaviest.date} · {record.heaviest.workoutName}</p>
+                    </div>
+
+                    <div className="personal-record-metric">
+                      <span>MOST REPS</span>
+                      <strong>{record.mostReps.reps} <small>reps</small></strong>
+                      <p>{record.mostReps.date} · {record.mostReps.workoutName}</p>
+                    </div>
+
+                    <div className="personal-record-metric">
+                      <span>HIGHEST VOLUME</span>
+                      <strong>
+                        {record.highestVolume.volume.toLocaleString('en-US')} <small>kg</small>
+                      </strong>
+                      <p>
+                        {record.highestVolume.sets} sets × {record.highestVolume.reps} reps · {record.highestVolume.date}
+                      </p>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="progress-empty">
+              Save workouts with exercise sets, reps, and weights to start building your personal records.
+            </div>
+          )}
+        </section>
+
         {/* PERSONALIZED WORKOUT PLANS */}
         <section className="panel plans-panel" id="plans">
           <div className="history-heading">
@@ -923,13 +1033,13 @@ function App() {
 
               {(() => {
                 const activePlan =
-                  plans.find(plan => plan.id === activePlanId) || plans[0]
+                  plans.find(plan => plan.id === activePlanId) || plans[0];
 
-                if (!activePlan) return null
+                if (!activePlan) return null;
 
                 const completedCount = activePlan.days.filter(day =>
-                  (day.completedDates || []).includes(localDateKey()),
-                ).length
+                  (day.completedDates || []).includes(localDateKey())
+                ).length;
 
                 return (
                   <div className="active-plan">
@@ -951,25 +1061,17 @@ function App() {
 
                     <div className="plan-day-grid">
                       {activePlan.days.map((day, index) => {
-                        const completed = (day.completedDates || []).includes(
-                          localDateKey(),
-                        )
+                        const completed = (day.completedDates || []).includes(localDateKey());
 
                         return (
                           <article
-                            className={
-                              completed
-                                ? 'plan-day-card completed'
-                                : 'plan-day-card'
-                            }
+                            className={completed ? 'plan-day-card completed' : 'plan-day-card'}
                             key={day.id}
                           >
                             <div className="plan-day-top">
                               <span>DAY {String(index + 1).padStart(2, '0')}</span>
                               {completed && (
-                                <span className="plan-complete-label">
-                                  COMPLETED
-                                </span>
+                                <span className="plan-complete-label">COMPLETED</span>
                               )}
                             </div>
 
@@ -977,30 +1079,22 @@ function App() {
 
                             <ul>
                               {day.exercises.map((exercise, exerciseIndex) => (
-                                <li key={`${day.id}-${exerciseIndex}`}>
-                                  {exercise}
-                                </li>
+                                <li key={`${day.id}-${exerciseIndex}`}>{exercise}</li>
                               ))}
                             </ul>
 
                             <button
-                              className={
-                                completed
-                                  ? 'plan-complete-button done'
-                                  : 'plan-complete-button'
-                              }
-                              onClick={() =>
-                                togglePlanDay(activePlan.id, day.id)
-                              }
+                              className={completed ? 'plan-complete-button done' : 'plan-complete-button'}
+                              onClick={() => togglePlanDay(activePlan.id, day.id)}
                             >
                               {completed ? 'Undo completion' : 'Mark completed'}
                             </button>
                           </article>
-                        )
+                        );
                       })}
                     </div>
                   </div>
-                )
+                );
               })()}
             </>
           )}
@@ -1060,9 +1154,7 @@ function App() {
                   <div className="workout-info">
                     <h3>{workout.name}</h3>
                     <p>{workout.detail || 'Workout session'}</p>
-                    {workout.sample && (
-                      <span className="demo-label">DEMO DATA</span>
-                    )}
+                    {workout.sample && <span className="demo-label">DEMO DATA</span>}
                   </div>
 
                   <div className="workout-date">{workout.date}</div>
@@ -1098,9 +1190,7 @@ function App() {
                 </article>
               ))
             ) : (
-              <div className="empty-history">
-                No workouts match your search.
-              </div>
+              <div className="empty-history">No workouts match your search.</div>
             )}
           </div>
 
@@ -1163,7 +1253,7 @@ function App() {
           className="modal-backdrop"
           onMouseDown={event => {
             if (event.target === event.currentTarget) {
-              setShowPlanBuilder(false)
+              setShowPlanBuilder(false);
             }
           }}
         >
@@ -1207,9 +1297,7 @@ function App() {
                   onChange={event => changePlanTemplate(event.target.value)}
                 >
                   {Object.keys(PLAN_TEMPLATES).map(template => (
-                    <option key={template} value={template}>
-                      {template}
-                    </option>
+                    <option key={template} value={template}>{template}</option>
                   ))}
                   <option value="Custom">Custom</option>
                 </select>
@@ -1285,8 +1373,8 @@ function App() {
           className="modal-backdrop"
           onMouseDown={event => {
             if (event.target === event.currentTarget) {
-              setShowLogger(false)
-              setEditingWorkoutId(null)
+              setShowLogger(false);
+              setEditingWorkoutId(null);
             }
           }}
         >
@@ -1310,8 +1398,8 @@ function App() {
                 type="button"
                 className="modal-close"
                 onClick={() => {
-                  setShowLogger(false)
-                  setEditingWorkoutId(null)
+                  setShowLogger(false);
+                  setEditingWorkoutId(null);
                 }}
                 aria-label="Close"
               >
@@ -1429,8 +1517,8 @@ function App() {
                   type="button"
                   className="secondary-button"
                   onClick={() => {
-                    setShowLogger(false)
-                    setEditingWorkoutId(null)
+                    setShowLogger(false);
+                    setEditingWorkoutId(null);
                   }}
                 >
                   Cancel
@@ -1445,7 +1533,8 @@ function App() {
         </div>
       )}
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
+ 
