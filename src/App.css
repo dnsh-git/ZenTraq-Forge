@@ -475,6 +475,41 @@ h2 { margin: 0; font: 600 19px 'Space Grotesk', sans-serif; }
   .meal-entry { grid-template-columns: 1fr 58px auto auto; }
 }
 
+/* Phase 1 focus: keep the core training loop prominent and approachable. */
+body {
+  background:
+    radial-gradient(circle at 82% 4%, rgba(196, 243, 107, 0.06), transparent 28rem),
+    #0b0d0c;
+}
+
+.sidebar {
+  background: linear-gradient(180deg, #121712 0%, #0f120f 100%);
+  box-shadow: 14px 0 34px rgba(0, 0, 0, 0.12);
+}
+
+.nav-item {
+  transition: background .18s ease, color .18s ease, transform .18s ease;
+}
+
+.nav-item:hover {
+  transform: translateX(2px);
+}
+
+.panel,
+.stat-card {
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+}
+
+.topbar .primary-button {
+  box-shadow: 0 8px 20px rgba(196, 243, 107, 0.12);
+  transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+}
+
+.topbar .primary-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(196, 243, 107, 0.2);
+}
+
 .record-actions {
   display: flex;
   align-items: center;

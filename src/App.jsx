@@ -763,6 +763,7 @@ function calculateStreak(workouts) {
 
 function App() {
   const initialTimerSession = loadTimerSession();
+  const showAdvancedFeatures = Boolean(localStorage.getItem('zentraq-phase-2-preview'));
   const [workouts, setWorkouts] = useState(loadWorkouts);
   const [showLogger, setShowLogger] = useState(Boolean(initialTimerSession));
   const [editingWorkoutId, setEditingWorkoutId] = useState(null);
@@ -1760,33 +1761,6 @@ function App() {
         : 'Suggested starting values are editable before saving.'
     );
     setGeneratorStep(3);
-  }
-
-  function openPlanGenerator(plan = null) {
-    if (plan?.generatorPreferences) {
-      const preferences = plan.generatorPreferences;
-      setGeneratorGoal(preferences.goal || 'balanced');
-      setGeneratorExperience(preferences.experience || 'Intermediate');
-      setGeneratorFrequency(Number(preferences.frequency) || 3);
-      setGeneratorDuration(Number(preferences.duration) || 60);
-      setGeneratorEquipment(preferences.equipment || ['full-gym']);
-      setGeneratorCustomEquipment(preferences.customEquipment || '');
-      setGeneratorMuscles(preferences.muscles || []);
-      setGeneratorRestDays(preferences.restDays !== false);
-    } else {
-      setGeneratorGoal('balanced');
-      setGeneratorExperience('Intermediate');
-      setGeneratorFrequency(3);
-      setGeneratorDuration(60);
-      setGeneratorEquipment(['full-gym']);
-      setGeneratorCustomEquipment('');
-      setGeneratorMuscles([]);
-      setGeneratorRestDays(true);
-    }
-    setGeneratedDays([]);
-    setGeneratorStep(1);
-    setGeneratorNotice('');
-    setShowPlanGenerator(true);
   }
 
   function updateGeneratedExercise(dayId, exerciseId, field, value) {
@@ -3064,7 +3038,7 @@ function App() {
 
   return (
     <div className="app-shell">
-      {activeGoalNotifications.length > 0 && (
+      {showAdvancedFeatures && activeGoalNotifications.length > 0 && (
         <aside className="goal-toast-stack" aria-live="polite">
           <div className="pr-toast-heading">
             <div>
@@ -3152,17 +3126,13 @@ function App() {
         <div className="sidebar-label">WORKSPACE</div>
 
         <nav className="side-nav">
-          <a className="nav-item active" href="#overview">Overview</a>
-          <a className="nav-item" href="#nutrition">Nutrition</a>
-          <a className="nav-item" href="#history">Workout history</a>
+          <a className="nav-item active" href="#overview">Dashboard</a>
+          <a className="nav-item" href="#workout-logger">Workouts</a>
+          <a className="nav-item" href="#history">History</a>
+          <a className="nav-item" href="#plans">Plans</a>
           <a className="nav-item" href="#progress">Progress</a>
-          <a className="nav-item" href="#insights">Insights</a>
-          <a className="nav-item" href="#body-tracker">Body tracker</a>
           <a className="nav-item" href="#personal-records">Personal records</a>
-          <a className="nav-item" href="#pr-notifications">PR notifications</a>
-          <a className="nav-item" href="#goals">Goals & milestones</a>
-          <a className="nav-item" href="#plans">Workout plans</a>
-          <a className="nav-item" href="#exercise-library">Exercise library</a>
+          <a className="nav-item" href="#settings">Settings</a>
         </nav>
 
         <div className="sidebar-bottom">
@@ -3187,7 +3157,7 @@ function App() {
           </button>
         </header>
 
-        {timerSession && (
+        {showAdvancedFeatures && timerSession && (
           <section className={`active-workout-panel ${timerSession.status}`} aria-live="polite">
             <div className="active-workout-main">
               <div className="eyebrow">
@@ -3317,7 +3287,7 @@ function App() {
           </article>
         </section>
 
-        <section className="panel body-overview-card">
+        {showAdvancedFeatures && <section className="panel body-overview-card">
           <div>
             <div className="eyebrow">TRANSFORMATION SNAPSHOT</div>
             <h2>Body metrics</h2>
@@ -3356,9 +3326,9 @@ function App() {
           {latestBodyEntry && (
             <a className="secondary-button body-overview-link" href="#body-tracker">Open body tracker ↗</a>
           )}
-        </section>
+        </section>}
 
-        <section className="panel nutrition-overview-card">
+        {showAdvancedFeatures && <section className="panel nutrition-overview-card">
           <div>
             <div className="eyebrow">TODAY'S NUTRITION</div>
             <h2>Fuel snapshot</h2>
@@ -3371,7 +3341,7 @@ function App() {
             <div><span>PROTEIN</span><strong>{nutritionMealTotals.protein.toFixed(0)}g / {nutritionTargets.protein}g</strong></div>
           </div>
           <a className="secondary-button" href="#nutrition">Open nutrition ↗</a>
-        </section>
+        </section>}
 
         <section className="content-grid" id="progress">
           <article className="panel activity-panel">
@@ -3458,7 +3428,7 @@ function App() {
         </section>
 
         {/* WORKOUT INSIGHTS */}
-        <section className="panel insights-panel" id="insights">
+        {showAdvancedFeatures && (<section className="panel insights-panel" id="insights">
           <div className="history-heading insights-heading">
             <div>
               <div className="eyebrow">DATA-DRIVEN TRAINING</div>
@@ -3687,10 +3657,9 @@ function App() {
               <button className="secondary-button" onClick={openLogger}>Log a workout</button>
             </div>
           )}
-        </section>
+        </section>)}
 
-        {/* NUTRITION */}
-        <section className="panel nutrition-panel" id="nutrition">
+        {showAdvancedFeatures && (<section className="panel nutrition-panel" id="nutrition">
           <div className="history-heading">
             <div>
               <div className="eyebrow">FOOD & FUEL</div>
@@ -3830,10 +3799,9 @@ function App() {
               </div>
             </div>
           )}
-        </section>
+        </section>)}
 
-        {/* BODY TRACKER */}
-        <section className="panel body-tracker-panel" id="body-tracker">
+        {showAdvancedFeatures && (<section className="panel body-tracker-panel" id="body-tracker">
           <div className="history-heading body-tracker-heading">
             <div>
               <div className="eyebrow">TRANSFORMATION TRACKER</div>
@@ -4021,10 +3989,9 @@ function App() {
               <button className="secondary-button" onClick={openBodyBuilder}>Add your first check-in</button>
             </div>
           )}
-        </section>
+        </section>)}
 
-        {/* EXERCISE LIBRARY */}
-        <section className="panel exercise-library-panel" id="exercise-library">
+        {showAdvancedFeatures && (<section className="panel exercise-library-panel" id="exercise-library">
           <div className="history-heading">
             <div>
               <div className="eyebrow">SMART EXERCISE DATABASE</div>
@@ -4217,7 +4184,7 @@ function App() {
               ))}</div>
             </div>
           )}
-        </section>
+        </section>)}
 
         {/* EXERCISE HISTORY */}
         <section className="panel exercise-history-panel" id="exercise-history">
@@ -4425,7 +4392,7 @@ function App() {
           )}
         </section>
 
-        <section className="panel goals-panel" id="goals">
+        {showAdvancedFeatures && (<><section className="panel goals-panel" id="goals">
           <div className="history-heading">
             <div>
               <div className="eyebrow">TRAIN WITH INTENTION</div>
@@ -4572,7 +4539,7 @@ function App() {
           ) : (
             <div className="progress-empty">Goal milestones will appear here as you progress.</div>
           )}
-        </section>
+        </section></>)}
 
         <section className="panel pr-notifications-panel" id="pr-notifications">
           <div className="history-heading">
@@ -4692,9 +4659,6 @@ function App() {
               </p>
             </div>
             <div className="plan-header-actions">
-              <button className="secondary-button" onClick={() => openPlanGenerator()}>
-                Generate plan
-              </button>
               <button className="primary-button" onClick={startPlanBuilder}>
                 + Create plan
               </button>
@@ -4751,14 +4715,6 @@ function App() {
                         </p>
                       </div>
                       <div className="plan-card-actions">
-                        {activePlan.generated && (
-                          <button
-                            className="secondary-button"
-                            onClick={() => openPlanGenerator(activePlan)}
-                          >
-                            Regenerate
-                          </button>
-                        )}
                         <button
                           className="clear-button"
                           onClick={() => deletePlan(activePlan.id)}
@@ -4909,7 +4865,7 @@ function App() {
             )}
           </div>
 
-          <div className="history-footer">
+          <div className="history-footer" id="settings">
             <span>{filteredWorkouts.length} sessions displayed</span>
 
             <div className="backup-actions">
@@ -5517,6 +5473,7 @@ function App() {
         >
           <section
             className="workout-modal"
+            id="workout-logger"
             role="dialog"
             aria-modal="true"
             aria-labelledby="logger-title"
@@ -5552,7 +5509,7 @@ function App() {
                 />
               </label>
 
-              {!editingWorkoutId && (
+              {showAdvancedFeatures && !editingWorkoutId && (
                 <div className={`timer-launcher ${timerSession ? 'is-active' : ''}`}>
                   <div>
                     <span className="timer-control-label">
@@ -5627,7 +5584,7 @@ function App() {
                         </button>
                       )}
                     </div>
-                    <div className="set-actions">
+                    {showAdvancedFeatures && <div className="set-actions">
                       <button
                         type="button"
                         className="rest-inline-button"
@@ -5642,7 +5599,7 @@ function App() {
                       >
                         Start {restPreset === 'custom' ? `${customRestSeconds}s` : `${restPreset}s`} rest
                       </button>
-                    </div>
+                    </div>}
 
                     <label className="form-label">
                       Exercise name
@@ -5725,7 +5682,7 @@ function App() {
                   {editingWorkoutId ? 'Save changes' : 'Save workout'}
                 </button>
               </div>
-              <div className="timer-preferences">
+              {showAdvancedFeatures && <div className="timer-preferences">
                 <div className="timer-preferences-heading">
                   <span className="timer-control-label">TIMER PREFERENCES</span>
                   <span>Saved on this device</span>
@@ -5783,7 +5740,7 @@ function App() {
                     <option value="15">15 seconds</option>
                   </select>
                 </label>
-              </div>
+              </div>}
             </form>
           </section>
         </div>
