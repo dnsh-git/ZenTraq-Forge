@@ -1,4 +1,3 @@
-```jsx
 import { useRef, useState } from 'react';
 import './App.css';
 
@@ -78,7 +77,11 @@ function getWorkoutDateKey(workout) {
   const now = new Date();
   let year = now.getFullYear();
 
-  if (new Date(year, month, Number(match[1])) > now && month === 11 && now.getMonth() === 0) {
+  if (
+    new Date(year, month, Number(match[1])) > now &&
+    month === 11 &&
+    now.getMonth() === 0
+  ) {
     year -= 1;
   }
 
