@@ -13,6 +13,36 @@ const FAVORITE_EXERCISES_KEY = 'zentraq-exercise-favorites';
 const RECENT_EXERCISES_KEY = 'zentraq-recent-exercises';
 const TIMER_SESSION_KEY = 'zentraq-active-timer-session';
 const TIMER_PREFERENCES_KEY = 'zentraq-timer-preferences';
+const CUSTOM_FOODS_KEY = 'zentraq-custom-foods';
+const NUTRITION_LOGS_KEY = 'zentraq-nutrition-logs';
+const NUTRITION_TARGETS_KEY = 'zentraq-nutrition-targets';
+
+const FOOD_CATEGORIES = [
+  'Fruits', 'Vegetables', 'Grains', 'Dairy', 'Legumes',
+  'Nuts and seeds', 'Meat and seafood', 'Beverages', 'Other',
+];
+
+const DEFAULT_NUTRITION_TARGETS = {
+  calories: 2000,
+  protein: 150,
+  carbohydrates: 220,
+  fat: 65,
+  fibre: 25,
+};
+
+// Values are approximate estimates per listed serving and are labeled in the UI.
+const BUILT_IN_FOODS = [
+  { id: 'food-oats', name: 'Rolled oats', servingSize: 40, servingUnit: 'g', calories: 152, protein: 5, carbohydrates: 27, fat: 3, fibre: 4, sugar: 0, category: 'Grains', approximate: true },
+  { id: 'food-banana', name: 'Banana', servingSize: 118, servingUnit: 'g', calories: 105, protein: 1, carbohydrates: 27, fat: 0, fibre: 3, sugar: 14, category: 'Fruits', approximate: true },
+  { id: 'food-apple', name: 'Apple', servingSize: 182, servingUnit: 'g', calories: 95, protein: 0, carbohydrates: 25, fat: 0, fibre: 4, sugar: 19, category: 'Fruits', approximate: true },
+  { id: 'food-rice', name: 'Cooked white rice', servingSize: 158, servingUnit: 'g', calories: 205, protein: 4, carbohydrates: 45, fat: 0, fibre: 1, sugar: 0, category: 'Grains', approximate: true },
+  { id: 'food-chicken', name: 'Chicken breast, cooked', servingSize: 100, servingUnit: 'g', calories: 165, protein: 31, carbohydrates: 0, fat: 4, fibre: 0, sugar: 0, category: 'Meat and seafood', approximate: true },
+  { id: 'food-egg', name: 'Egg', servingSize: 50, servingUnit: 'g', calories: 72, protein: 6, carbohydrates: 0, fat: 5, fibre: 0, sugar: 0, category: 'Dairy', approximate: true },
+  { id: 'food-yogurt', name: 'Plain Greek yogurt', servingSize: 170, servingUnit: 'g', calories: 100, protein: 17, carbohydrates: 6, fat: 0, fibre: 0, sugar: 4, category: 'Dairy', approximate: true },
+  { id: 'food-lentils', name: 'Cooked lentils', servingSize: 198, servingUnit: 'g', calories: 230, protein: 18, carbohydrates: 40, fat: 1, fibre: 16, sugar: 4, category: 'Legumes', approximate: true },
+  { id: 'food-almonds', name: 'Almonds', servingSize: 28, servingUnit: 'g', calories: 164, protein: 6, carbohydrates: 6, fat: 14, fibre: 4, sugar: 1, category: 'Nuts and seeds', approximate: true },
+  { id: 'food-milk', name: 'Milk, 2%', servingSize: 240, servingUnit: 'ml', calories: 122, protein: 8, carbohydrates: 12, fat: 5, fibre: 0, sugar: 12, category: 'Beverages', approximate: true },
+];
 
 const DEFAULT_TIMER_PREFERENCES = {
   defaultRestSeconds: 60,
@@ -361,8 +391,84 @@ function loadCustomExercises() {
     }));
 }
 
+function loadCustomFoods() {
+  return loadStoredArray(CUSTOM_FOODS_KEY)
+    .filter(item => item && typeof item.id === 'string' && typeof item.name === 'string' && item.name.trim())
+    .map(item => ({
+      ...item,
+      name: normalizeExerciseName(item.name),
+      servingSize: Number(item.servingSize) > 0 ? Number(item.servingSize) : 1,
+      servingUnit: typeof item.servingUnit === 'string' && item.servingUnit.trim() ? item.servingUnit.trim() : 'serving',
+      calories: Number(item.calories) >= 0 ? Number(item.calories) : 0,
+      protein: Number(item.protein) >= 0 ? Number(item.protein) : 0,
+      carbohydrates: Number(item.carbohydrates) >= 0 ? Number(item.carbohydrates) : 0,
+      fat: Number(item.fat) >= 0 ? Number(item.fat) : 0,
+      fibre: Number(item.fibre) >= 0 ? Number(item.fibre) : null,
+      sugar: Number(item.sugar) >= 0 ? Number(item.sugar) : null,
+      category: FOOD_CATEGORIES.includes(item.category) ? item.category : 'Other',
+      custom: true,
+    }));
+}
+
+function loadNutritionTargets() {
+  const stored = loadStoredObject(NUTRITION_TARGETS_KEY);
+  return Object.fromEntries(Object.entries(DEFAULT_NUTRITION_TARGETS).map(([key, fallback]) => [
+    key,
+    Number.isFinite(Number(stored[key])) && Number(stored[key]) > 0 ? Number(stored[key]) : fallback,
+  ]));
+}
+
+function loadNutritionLogs() {
+  return loadStoredArray(NUTRITION_LOGS_KEY)
+    .filter(log => log && typeof log.date === 'string')
+    .map(log => ({
+      ...log,
+      id: typeof log.id === 'string' ? log.id : crypto.randomUUID(),
+      meals: Object.fromEntries(['breakfast', 'lunch', 'dinner', 'snacks'].map(meal => [
+        meal,
+        Array.isArray(log.meals?.[meal])
+          ? log.meals[meal].filter(entry =>
+              entry &&
+              typeof entry.id === 'string' &&
+              typeof entry.name === 'string' &&
+              entry.nutrients &&
+              typeof entry.nutrients === 'object'
+            )
+          : [],
+      ])),
+      notes: Object.fromEntries(['breakfast', 'lunch', 'dinner', 'snacks'].map(meal => [
+        meal,
+        typeof log.notes?.[meal] === 'string' ? log.notes[meal] : '',
+      ])),
+    }));
+}
+
 function loadStringArray(key) {
   return loadStoredArray(key).filter(item => typeof item === 'string');
+}
+
+function scaleFoodNutrition(food, quantity) {
+  const multiplier = Number(quantity) || 0;
+  const scale = multiplier;
+  return {
+    calories: food.calories * scale,
+    protein: food.protein * scale,
+    carbohydrates: food.carbohydrates * scale,
+    fat: food.fat * scale,
+    fibre: food.fibre === null || food.fibre === undefined ? null : food.fibre * scale,
+    sugar: food.sugar === null || food.sugar === undefined ? null : food.sugar * scale,
+  };
+}
+
+function nutritionEntryTotals(entries) {
+  return entries.reduce((totals, entry) => {
+    Object.keys(totals).forEach(key => {
+      if (entry.nutrients[key] !== null && entry.nutrients[key] !== undefined) {
+        totals[key] += Number(entry.nutrients[key]) || 0;
+      }
+    });
+    return totals;
+  }, { calories: 0, protein: 0, carbohydrates: 0, fat: 0, fibre: 0, sugar: 0 });
 }
 
 function loadTimerSession() {
@@ -718,6 +824,30 @@ function App() {
   const [selectedBodyPart, setSelectedBodyPart] = useState('Waist');
   const [bodySearch, setBodySearch] = useState('');
   const [bodySort, setBodySort] = useState('newest');
+  const [customFoods, setCustomFoods] = useState(loadCustomFoods);
+  const [nutritionLogs, setNutritionLogs] = useState(
+    loadNutritionLogs
+  );
+  const [nutritionTargets, setNutritionTargets] = useState(loadNutritionTargets);
+  const [nutritionDate, setNutritionDate] = useState(localDateKey());
+  const [nutritionFoodSearch, setNutritionFoodSearch] = useState('');
+  const [nutritionFoodCategory, setNutritionFoodCategory] = useState('all');
+  const [nutritionMeal, setNutritionMeal] = useState('breakfast');
+  const [nutritionSelectedFoodId, setNutritionSelectedFoodId] = useState('');
+  const [nutritionQuantity, setNutritionQuantity] = useState('1');
+  const [showFoodBuilder, setShowFoodBuilder] = useState(false);
+  const [editingFoodId, setEditingFoodId] = useState(null);
+  const [foodBuilderName, setFoodBuilderName] = useState('');
+  const [foodBuilderServingSize, setFoodBuilderServingSize] = useState('100');
+  const [foodBuilderServingUnit, setFoodBuilderServingUnit] = useState('g');
+  const [foodBuilderCalories, setFoodBuilderCalories] = useState('');
+  const [foodBuilderProtein, setFoodBuilderProtein] = useState('');
+  const [foodBuilderCarbohydrates, setFoodBuilderCarbohydrates] = useState('');
+  const [foodBuilderFat, setFoodBuilderFat] = useState('');
+  const [foodBuilderFibre, setFoodBuilderFibre] = useState('');
+  const [foodBuilderSugar, setFoodBuilderSugar] = useState('');
+  const [foodBuilderCategory, setFoodBuilderCategory] = useState('Other');
+  const [nutritionHistoryRange, setNutritionHistoryRange] = useState('7');
   const [customExercises, setCustomExercises] = useState(loadCustomExercises);
   const [favoriteExercises, setFavoriteExercises] = useState(
     () => loadStringArray(FAVORITE_EXERCISES_KEY)
@@ -899,6 +1029,34 @@ function App() {
       (selectedLibraryExercise && exercise.primaryMuscle === selectedLibraryExercise.primaryMuscle);
   }).slice(0, 5);
 
+  const allFoods = [...BUILT_IN_FOODS, ...customFoods];
+  const filteredNutritionFoods = allFoods.filter(food => {
+    const query = nutritionFoodSearch.trim().toLowerCase();
+    return (!query || food.name.toLowerCase().includes(query) || food.category.toLowerCase().includes(query)) &&
+      (nutritionFoodCategory === 'all' || food.category === nutritionFoodCategory);
+  });
+  const nutritionLog = nutritionLogs.find(log => log.date === nutritionDate) || {
+    date: nutritionDate,
+    meals: { breakfast: [], lunch: [], dinner: [], snacks: [] },
+    notes: {},
+  };
+  const nutritionMeals = ['breakfast', 'lunch', 'dinner', 'snacks'];
+  const nutritionMealTotals = nutritionEntryTotals(
+    nutritionMeals.flatMap(meal => nutritionLog.meals?.[meal] || [])
+  );
+  const nutritionRangeStart = getRangeStart(nutritionHistoryRange, nutritionDate);
+  const nutritionHistory = nutritionLogs
+    .filter(log => !nutritionRangeStart || log.date >= nutritionRangeStart)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const nutritionHistoryTotals = nutritionHistory.map(log => ({
+    ...log,
+    totals: nutritionEntryTotals(nutritionMeals.flatMap(meal => log.meals?.[meal] || [])),
+  }));
+  const nutritionAverageCalories = nutritionHistoryTotals.length
+    ? nutritionHistoryTotals.reduce((total, log) => total + log.totals.calories, 0) / nutritionHistoryTotals.length
+    : 0;
+  const nutritionSelectedFood = allFoods.find(food => food.id === nutritionSelectedFoodId) || null;
+
   const currentStreak = calculateStreak(realWorkouts);
   const activeTimerElapsed = getElapsedTimerMs(timerSession, timerNow);
   const restRemainingMs = getRestRemainingMs(restTimer, restNow);
@@ -937,6 +1095,9 @@ function App() {
   }).sort((a, b) => bodySort === 'oldest'
     ? a.date.localeCompare(b.date)
     : b.date.localeCompare(a.date));
+  const nutritionBodyEntries = filteredBodyEntries.filter(entry =>
+    nutritionHistory.some(log => log.date === entry.date)
+  ).sort((a, b) => a.date.localeCompare(b.date));
 
   const insightToday = localDateKey();
   const insightStart = getRangeStart(insightRange, insightToday);
@@ -1829,6 +1990,208 @@ function App() {
     }
   }
 
+  function persistNutritionLogs(updated) {
+      try {
+        localStorage.setItem(NUTRITION_LOGS_KEY, JSON.stringify(updated));
+        setNutritionLogs(updated);
+        return true;
+      } catch {
+        setNotice('Could not save nutrition logs. Check your browser storage settings.');
+        return false;
+      }
+    }
+
+  function persistCustomFoods(updated) {
+      try {
+        localStorage.setItem(CUSTOM_FOODS_KEY, JSON.stringify(updated));
+        setCustomFoods(updated);
+        return true;
+      } catch {
+        setNotice('Could not save custom foods. Check your browser storage settings.');
+        return false;
+      }
+    }
+
+  function persistNutritionTargets(updated) {
+      try {
+        localStorage.setItem(NUTRITION_TARGETS_KEY, JSON.stringify(updated));
+        setNutritionTargets(updated);
+        return true;
+      } catch {
+        setNotice('Could not save nutrition targets. Check your browser storage settings.');
+        return false;
+      }
+    }
+
+  function updateNutritionLog(updater) {
+      const existing = nutritionLogs.find(log => log.date === nutritionDate) || {
+        id: crypto.randomUUID(),
+        date: nutritionDate,
+        meals: { breakfast: [], lunch: [], dinner: [], snacks: [] },
+        notes: {},
+      };
+      const updatedLog = updater({
+        ...existing,
+        meals: {
+          breakfast: [],
+          lunch: [],
+          dinner: [],
+          snacks: [],
+          ...(existing.meals || {}),
+        },
+        notes: existing.notes || {},
+      });
+      const updated = nutritionLogs.some(log => log.date === nutritionDate)
+        ? nutritionLogs.map(log => log.date === nutritionDate ? updatedLog : log)
+        : [...nutritionLogs, updatedLog];
+      persistNutritionLogs(updated.filter(log =>
+        Object.values(log.meals || {}).some(entries => entries.length) ||
+        Object.values(log.notes || {}).some(note => typeof note === 'string' && note.trim())
+      ));
+    }
+
+  function addNutritionEntry(event) {
+      event.preventDefault();
+      if (!nutritionSelectedFood || Number(nutritionQuantity) <= 0) {
+        setNotice('Select a food and enter a quantity greater than zero.');
+        return;
+      }
+      const quantity = Number(nutritionQuantity);
+      const nutrients = scaleFoodNutrition(nutritionSelectedFood, quantity);
+      updateNutritionLog(log => ({
+        ...log,
+        meals: {
+          ...log.meals,
+          [nutritionMeal]: [...(log.meals[nutritionMeal] || []), {
+            id: crypto.randomUUID(),
+            foodId: nutritionSelectedFood.id,
+            name: nutritionSelectedFood.name,
+            servingSize: nutritionSelectedFood.servingSize,
+            servingUnit: nutritionSelectedFood.servingUnit,
+            quantity,
+            nutrients,
+            approximate: nutritionSelectedFood.approximate === true,
+          }],
+        },
+      }));
+      setNutritionQuantity('1');
+      setNutritionSelectedFoodId('');
+    }
+
+  function deleteNutritionEntry(meal, entryId) {
+      updateNutritionLog(log => ({
+        ...log,
+        meals: {
+          ...log.meals,
+          [meal]: (log.meals[meal] || []).filter(entry => entry.id !== entryId),
+        },
+      }));
+    }
+
+  function updateNutritionEntryQuantity(meal, entryId, quantity) {
+      const numericQuantity = Number(quantity);
+      if (!(numericQuantity > 0)) return;
+      updateNutritionLog(log => ({
+        ...log,
+        meals: {
+          ...log.meals,
+          [meal]: (log.meals[meal] || []).map(entry =>
+            entry.id !== entryId
+              ? entry
+              : {
+                  ...entry,
+                  quantity: numericQuantity,
+                  nutrients: Object.fromEntries(
+                    Object.entries(entry.nutrients).map(([key, value]) => [
+                      key,
+                      value === null || value === undefined
+                        ? value
+                        : (Number(value) / Number(entry.quantity || 1)) * numericQuantity,
+                    ])
+                  ),
+                }
+          ),
+        },
+      }));
+    }
+
+  function updateNutritionMealNote(meal, note) {
+      updateNutritionLog(log => ({ ...log, notes: { ...log.notes, [meal]: note } }));
+    }
+
+  function resetFoodBuilder() {
+      setEditingFoodId(null);
+      setFoodBuilderName('');
+      setFoodBuilderServingSize('100');
+      setFoodBuilderServingUnit('g');
+      setFoodBuilderCalories('');
+      setFoodBuilderProtein('');
+      setFoodBuilderCarbohydrates('');
+      setFoodBuilderFat('');
+      setFoodBuilderFibre('');
+      setFoodBuilderSugar('');
+      setFoodBuilderCategory('Other');
+    }
+
+  function openFoodBuilder(food = null) {
+      if (food) {
+        setEditingFoodId(food.id);
+        setFoodBuilderName(food.name);
+        setFoodBuilderServingSize(String(food.servingSize));
+        setFoodBuilderServingUnit(food.servingUnit);
+        setFoodBuilderCalories(String(food.calories));
+        setFoodBuilderProtein(String(food.protein));
+        setFoodBuilderCarbohydrates(String(food.carbohydrates));
+        setFoodBuilderFat(String(food.fat));
+        setFoodBuilderFibre(food.fibre === null ? '' : String(food.fibre));
+        setFoodBuilderSugar(food.sugar === null ? '' : String(food.sugar));
+        setFoodBuilderCategory(food.category);
+      } else {
+        resetFoodBuilder();
+      }
+      setShowFoodBuilder(true);
+    }
+
+  function saveCustomFood(event) {
+      event.preventDefault();
+      const values = [foodBuilderServingSize, foodBuilderCalories, foodBuilderProtein, foodBuilderCarbohydrates, foodBuilderFat];
+      if (
+        !foodBuilderName.trim() ||
+        values.some(value => value === '' || Number(value) < 0) ||
+        [foodBuilderFibre, foodBuilderSugar].some(value => value !== '' && Number(value) < 0) ||
+        Number(foodBuilderServingSize) <= 0
+      ) {
+        setNotice('Enter a food name and valid non-negative nutrition values.');
+        return;
+      }
+      const food = {
+        id: editingFoodId || crypto.randomUUID(),
+        name: normalizeExerciseName(foodBuilderName),
+        servingSize: Number(foodBuilderServingSize),
+        servingUnit: foodBuilderServingUnit.trim() || 'serving',
+        calories: Number(foodBuilderCalories),
+        protein: Number(foodBuilderProtein),
+        carbohydrates: Number(foodBuilderCarbohydrates),
+        fat: Number(foodBuilderFat),
+        fibre: foodBuilderFibre === '' ? null : Number(foodBuilderFibre),
+        sugar: foodBuilderSugar === '' ? null : Number(foodBuilderSugar),
+        category: foodBuilderCategory,
+        custom: true,
+      };
+      const updated = editingFoodId
+        ? customFoods.map(item => item.id === editingFoodId ? food : item)
+        : [...customFoods, food];
+      if (persistCustomFoods(updated)) {
+        setShowFoodBuilder(false);
+        resetFoodBuilder();
+        setNotice(editingFoodId ? 'Custom food updated.' : 'Custom food added.');
+      }
+    }
+
+  function deleteCustomFood(food) {
+      if (!window.confirm(`Delete "${food.name}" from your custom foods? Historical meal snapshots will remain unchanged.`)) return;
+      persistCustomFoods(customFoods.filter(item => item.id !== food.id));
+    }
   function openBodyBuilder() {
     setEditingBodyEntryId(null);
     setBodyWeight('');
@@ -2185,7 +2548,7 @@ function App() {
     try {
       const backup = {
         app: 'ZENTRAQ FORGE',
-        version: 2,
+        version: 3,
         exportedAt: new Date().toISOString(),
         workouts: realWorkouts,
         goals,
@@ -2195,6 +2558,9 @@ function App() {
         customExercises,
         favoriteExercises,
         recentExercises,
+        customFoods,
+        nutritionLogs,
+        nutritionTargets,
       };
 
       const blob = new Blob(
@@ -2238,6 +2604,9 @@ function App() {
       const importedCustomExercises = Array.isArray(parsed) ? null : parsed.customExercises;
       const importedFavorites = Array.isArray(parsed) ? null : parsed.favoriteExercises;
       const importedRecent = Array.isArray(parsed) ? null : parsed.recentExercises;
+      const importedCustomFoods = Array.isArray(parsed) ? null : parsed.customFoods;
+      const importedNutritionLogs = Array.isArray(parsed) ? null : parsed.nutritionLogs;
+      const importedNutritionTargets = Array.isArray(parsed) ? null : parsed.nutritionTargets;
 
       if (!Array.isArray(imported)) {
         throw new Error('Invalid backup format.');
@@ -2306,6 +2675,18 @@ function App() {
             setRecentExercises,
             'Could not import recent exercises.'
           );
+        }
+        if (Array.isArray(importedCustomFoods)) {
+          persistCustomFoods(importedCustomFoods);
+        }
+        if (Array.isArray(importedNutritionLogs)) {
+          persistNutritionLogs(importedNutritionLogs);
+        }
+        if (importedNutritionTargets && typeof importedNutritionTargets === 'object') {
+          persistNutritionTargets({
+            ...DEFAULT_NUTRITION_TARGETS,
+            ...importedNutritionTargets,
+          });
         }
         setNotice(`Successfully imported ${cleaned.length} workouts.`);
       }
@@ -2772,6 +3153,7 @@ function App() {
 
         <nav className="side-nav">
           <a className="nav-item active" href="#overview">Overview</a>
+          <a className="nav-item" href="#nutrition">Nutrition</a>
           <a className="nav-item" href="#history">Workout history</a>
           <a className="nav-item" href="#progress">Progress</a>
           <a className="nav-item" href="#insights">Insights</a>
@@ -2974,6 +3356,21 @@ function App() {
           {latestBodyEntry && (
             <a className="secondary-button body-overview-link" href="#body-tracker">Open body tracker ↗</a>
           )}
+        </section>
+
+        <section className="panel nutrition-overview-card">
+          <div>
+            <div className="eyebrow">TODAY'S NUTRITION</div>
+            <h2>Fuel snapshot</h2>
+            <p className="history-subtitle">
+              {nutritionMealTotals.calories.toFixed(0)} kcal logged · {Math.max(0, nutritionTargets.calories - nutritionMealTotals.calories).toFixed(0)} kcal remaining
+            </p>
+          </div>
+          <div className="nutrition-overview-metrics">
+            <div><span>CALORIES</span><strong>{nutritionMealTotals.calories.toFixed(0)} / {nutritionTargets.calories}</strong></div>
+            <div><span>PROTEIN</span><strong>{nutritionMealTotals.protein.toFixed(0)}g / {nutritionTargets.protein}g</strong></div>
+          </div>
+          <a className="secondary-button" href="#nutrition">Open nutrition ↗</a>
         </section>
 
         <section className="content-grid" id="progress">
@@ -3288,6 +3685,149 @@ function App() {
               <h3>Insights start with your next session.</h3>
               <p>Save workouts to see volume trends, consistency, muscle balance, and performance signals.</p>
               <button className="secondary-button" onClick={openLogger}>Log a workout</button>
+            </div>
+          )}
+        </section>
+
+        {/* NUTRITION */}
+        <section className="panel nutrition-panel" id="nutrition">
+          <div className="history-heading">
+            <div>
+              <div className="eyebrow">FOOD & FUEL</div>
+              <h2>Nutrition</h2>
+              <p className="history-subtitle">Log meals with dated nutritional snapshots. Targets are configurable starting points, not medical recommendations.</p>
+            </div>
+            <div className="nutrition-date-control">
+              <label>DATE <input type="date" value={nutritionDate} onChange={event => setNutritionDate(event.target.value)} /></label>
+              <button className="secondary-button" onClick={() => openFoodBuilder()}>+ Custom food</button>
+            </div>
+          </div>
+
+          <div className="nutrition-stat-grid">
+            {[
+              ['Calories', nutritionMealTotals.calories, nutritionTargets.calories, 'kcal'],
+              ['Protein', nutritionMealTotals.protein, nutritionTargets.protein, 'g'],
+              ['Carbohydrates', nutritionMealTotals.carbohydrates, nutritionTargets.carbohydrates, 'g'],
+              ['Fat', nutritionMealTotals.fat, nutritionTargets.fat, 'g'],
+            ].map(([label, value, target, unit]) => (
+              <article className="nutrition-stat-card" key={label}>
+                <span>{label.toUpperCase()}</span>
+                <strong>{value.toFixed(0)}<small> / {target}{unit}</small></strong>
+                <div className="nutrition-progress"><span style={{ width: `${Math.min(100, (value / target) * 100)}%` }} /></div>
+                <em>{Math.round((value / target) * 100)}% of target</em>
+              </article>
+            ))}
+          </div>
+
+          <div className="nutrition-layout">
+            <div className="nutrition-logger">
+              <div className="nutrition-section-heading">
+                <div><span className="eyebrow">ADD FOOD</span><h3>Meal logger</h3></div>
+                <select value={nutritionMeal} onChange={event => setNutritionMeal(event.target.value)} aria-label="Meal">
+                  {nutritionMeals.map(meal => <option key={meal} value={meal}>{meal[0].toUpperCase() + meal.slice(1)}</option>)}
+                </select>
+              </div>
+              <form className="nutrition-food-form" onSubmit={addNutritionEntry}>
+                <input type="search" value={nutritionFoodSearch} onChange={event => setNutritionFoodSearch(event.target.value)} placeholder="Search foods..." aria-label="Search foods" />
+                <select value={nutritionFoodCategory} onChange={event => setNutritionFoodCategory(event.target.value)} aria-label="Food category">
+                  <option value="all">All categories</option>
+                  {FOOD_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}
+                </select>
+                <select value={nutritionSelectedFoodId} onChange={event => setNutritionSelectedFoodId(event.target.value)} aria-label="Food">
+                  <option value="">Select food</option>
+                  {filteredNutritionFoods.map(food => <option key={food.id} value={food.id}>{food.name}{food.approximate ? ' · approx.' : ''}</option>)}
+                </select>
+                <input type="number" min="0.01" step="0.01" value={nutritionQuantity} onChange={event => setNutritionQuantity(event.target.value)} aria-label="Serving quantity" />
+                <button className="primary-button" type="submit">Add to {nutritionMeal}</button>
+              </form>
+              <p className="nutrition-footnote">Built-in foods use approximate estimates per listed serving. Custom foods use the values you enter.</p>
+              {nutritionSelectedFood && <p className="nutrition-selection-detail">{nutritionSelectedFood.servingSize}{nutritionSelectedFood.servingUnit} · {nutritionSelectedFood.calories} kcal · {nutritionSelectedFood.protein}g protein per serving</p>}
+              <div className="meal-list">
+                {nutritionMeals.map(meal => (
+                  <article className="meal-card" key={meal}>
+                    <div className="meal-card-heading"><h3>{meal[0].toUpperCase() + meal.slice(1)}</h3><span>{nutritionLog.meals?.[meal]?.length || 0} items</span></div>
+                    {(nutritionLog.meals?.[meal] || []).length ? (nutritionLog.meals[meal] || []).map(entry => (
+                      <div className="meal-entry" key={entry.id}>
+                        <div><strong>{entry.name}</strong><small>{entry.approximate ? 'Approximate estimate · ' : ''}{entry.quantity} × {entry.servingSize}{entry.servingUnit} · {entry.nutrients.calories.toFixed(0)} kcal</small></div>
+                        <input type="number" min="0.01" step="0.01" value={entry.quantity} onChange={event => updateNutritionEntryQuantity(meal, entry.id, event.target.value)} aria-label={`${entry.name} quantity`} />
+                        <span>{entry.servingUnit}</span>
+                        <button className="clear-button" type="button" onClick={() => deleteNutritionEntry(meal, entry.id)} aria-label={`Delete ${entry.name}`}>×</button>
+                      </div>
+                    )) : <p className="nutrition-empty">No foods logged.</p>}
+                    <input className="meal-note-input" value={nutritionLog.notes?.[meal] || ''} onChange={event => updateNutritionMealNote(meal, event.target.value)} placeholder="Add a meal note..." aria-label={`${meal} note`} />
+                  </article>
+                ))}
+              </div>
+            </div>
+            <aside className="nutrition-targets-card">
+              <div className="nutrition-section-heading"><div><span className="eyebrow">DAILY TARGETS</span><h3>Configure goals</h3></div></div>
+              {Object.entries(nutritionTargets).map(([key, value]) => (
+                <label key={key}>{key[0].toUpperCase() + key.slice(1)}
+                  <input type="number" min="1" value={value} onChange={event => {
+                    const next = Number(event.target.value);
+                    if (next > 0) persistNutritionTargets({ ...nutritionTargets, [key]: next });
+                  }} />
+                </label>
+              ))}
+              <p>These are user-configurable tracking targets and are not personalized dietary advice.</p>
+            </aside>
+          </div>
+
+          <div className="nutrition-history">
+            <div className="nutrition-section-heading">
+              <div><span className="eyebrow">HISTORY & TRENDS</span><h3>Nutrition analytics</h3></div>
+              <select value={nutritionHistoryRange} onChange={event => setNutritionHistoryRange(event.target.value)} aria-label="Nutrition history range">
+                <option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="all">All time</option>
+              </select>
+            </div>
+            <div className="nutrition-history-summary"><strong>{nutritionAverageCalories.toFixed(0)} kcal</strong><span>average logged calories · {nutritionHistoryTotals.length} logged day{nutritionHistoryTotals.length === 1 ? '' : 's'}</span></div>
+            {nutritionHistoryTotals.length > 0 && (
+              <div className="nutrition-trend-chart" aria-label="Daily calorie intake trend">
+                {nutritionHistoryTotals.map(log => (
+                  <div className="nutrition-trend-column" key={`${log.date}-chart`} title={`${log.date}: ${log.totals.calories.toFixed(0)} kcal`}>
+                    <span style={{ height: `${Math.max(8, (log.totals.calories / Math.max(nutritionTargets.calories, ...nutritionHistoryTotals.map(item => item.totals.calories))) * 100)}%` }} />
+                    <small>{log.date.slice(5)}</small>
+                  </div>
+                ))}
+              </div>
+            )}
+            {nutritionHistoryTotals.length ? (
+              <div className="nutrition-history-list">
+                {nutritionHistoryTotals.slice().reverse().map(log => (
+                  <div className="nutrition-history-row" key={log.date}>
+                    <strong>{log.date}</strong><span>{log.totals.calories.toFixed(0)} kcal</span><span>{log.totals.protein.toFixed(0)}g protein</span><span>{log.totals.carbohydrates.toFixed(0)}g carbs</span><span>{log.totals.fat.toFixed(0)}g fat</span><span>{Math.round((log.totals.calories / nutritionTargets.calories) * 100)}% target</span>
+                  </div>
+                ))}
+              </div>
+            ) : <div className="nutrition-empty">Log meals to build your nutrition history.</div>}
+            <div className="nutrition-body-link">
+              <span>Body weight entries and nutrition intake are shown as separate trends.</span>
+              <a className="secondary-button" href="#body-tracker">Compare in body tracker ↗</a>
+            </div>
+            {nutritionBodyEntries.length > 0 && <div className="nutrition-body-trend">{nutritionBodyEntries.map(entry => <span key={entry.id}>{entry.date}: {entry.weightKg.toFixed(1)} kg</span>)}</div>}
+          </div>
+
+          {showFoodBuilder && (
+            <div className="nutrition-food-builder">
+              <div className="nutrition-section-heading"><div><span className="eyebrow">CUSTOM FOOD</span><h3>{editingFoodId ? 'Edit custom food' : 'Add custom food'}</h3></div><button className="clear-button" type="button" onClick={() => setShowFoodBuilder(false)}>×</button></div>
+              <form className="food-builder-grid" onSubmit={saveCustomFood}>
+                <input required value={foodBuilderName} onChange={event => setFoodBuilderName(event.target.value)} placeholder="Food name" />
+                <input required type="number" min="0.01" step="0.01" value={foodBuilderServingSize} onChange={event => setFoodBuilderServingSize(event.target.value)} placeholder="Serving quantity" />
+                <input required value={foodBuilderServingUnit} onChange={event => setFoodBuilderServingUnit(event.target.value)} placeholder="Unit (g, ml, serving)" />
+                <select value={foodBuilderCategory} onChange={event => setFoodBuilderCategory(event.target.value)}>{FOOD_CATEGORIES.map(category => <option key={category}>{category}</option>)}</select>
+                {[
+                  ['Calories', foodBuilderCalories, setFoodBuilderCalories],
+                  ['Protein (g)', foodBuilderProtein, setFoodBuilderProtein],
+                  ['Carbohydrates (g)', foodBuilderCarbohydrates, setFoodBuilderCarbohydrates],
+                  ['Fat (g)', foodBuilderFat, setFoodBuilderFat],
+                  ['Fibre (g, optional)', foodBuilderFibre, setFoodBuilderFibre],
+                  ['Sugar (g, optional)', foodBuilderSugar, setFoodBuilderSugar],
+                ].map(([label, value, setter]) => <input key={label} type="number" min="0" step="0.01" value={value} onChange={event => setter(event.target.value)} placeholder={label} />)}
+                <div className="food-builder-actions"><button className="primary-button" type="submit">{editingFoodId ? 'Save changes' : 'Add food'}</button><button className="secondary-button" type="button" onClick={() => setShowFoodBuilder(false)}>Cancel</button></div>
+              </form>
+              <div className="custom-food-list">
+                {customFoods.map(food => <div key={food.id}><span>{food.name} · {food.calories} kcal/{food.servingSize}{food.servingUnit}</span><button className="clear-button" type="button" onClick={() => openFoodBuilder(food)}>Edit</button><button className="clear-button" type="button" onClick={() => deleteCustomFood(food)}>Delete</button></div>)}
+              </div>
             </div>
           )}
         </section>
