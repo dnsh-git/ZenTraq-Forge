@@ -835,3 +835,137 @@ h2 { margin: 0; font: 600 19px 'Space Grotesk', sans-serif; }
     flex-direction: column;
   }
 }
+/* Exercise progress chart */
+.exercise-progress-card {
+  margin: 24px 0;
+  padding: 22px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.exercise-progress-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.exercise-progress-heading h3 {
+  margin: 7px 0;
+  font-size: 19px;
+}
+
+.exercise-chart-tabs {
+  display: flex;
+  gap: 5px;
+  padding: 4px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.exercise-chart-tabs button {
+  padding: 8px 13px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  transition: 0.2s ease;
+}
+
+.exercise-chart-tabs button.active {
+  background: var(--accent, #b7f36b);
+  color: #10150c;
+  font-weight: 700;
+}
+
+.exercise-chart-scale {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  color: var(--muted, #929a91);
+  font-size: 12px;
+}
+
+.exercise-chart-scale strong {
+  color: var(--accent, #b7f36b);
+  font-size: 17px;
+}
+
+.exercise-progress-chart {
+  width: 100%;
+  height: 220px;
+  overflow: hidden;
+}
+
+.exercise-progress-chart svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.exercise-chart-gridline {
+  stroke: rgba(255, 255, 255, 0.09);
+  stroke-width: 1;
+  stroke-dasharray: 4 6;
+}
+
+.exercise-chart-line {
+  fill: none;
+  stroke: var(--accent, #b7f36b);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.exercise-chart-point {
+  fill: var(--accent, #b7f36b);
+  stroke: #172015;
+  stroke-width: 2;
+}
+
+.exercise-chart-dates {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  color: var(--muted, #929a91);
+  font-size: 11px;
+}
+
+.exercise-chart-footnote {
+  margin: 16px 0 0;
+  color: var(--muted, #929a91);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+@media (max-width: 600px) {
+  .exercise-progress-card {
+    padding: 15px;
+  }
+
+  .exercise-progress-heading {
+    flex-direction: column;
+  }
+
+  .exercise-chart-tabs {
+    width: 100%;
+  }
+
+  .exercise-chart-tabs button {
+    flex: 1;
+    padding: 8px 5px;
+  }
+
+  .exercise-progress-chart {
+    height: 180px;
+  }
+}
