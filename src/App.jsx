@@ -764,6 +764,15 @@ function calculateStreak(workouts) {
 function App() {
   const initialTimerSession = loadTimerSession();
   const showAdvancedFeatures = Boolean(localStorage.getItem('zentraq-phase-2-preview'));
+  const getScreenFromHash = () => {
+    const hash = window.location.hash.slice(1);
+    if (['history', 'plans', 'progress', 'personal-records', 'settings', 'workout-logger'].includes(hash)) {
+      if (hash === 'settings') return 'history';
+      return hash === 'workout-logger' ? 'workouts' : hash;
+    }
+    return 'dashboard';
+  };
+  const [activeScreen, setActiveScreen] = useState(getScreenFromHash);
   const [workouts, setWorkouts] = useState(loadWorkouts);
   const [showLogger, setShowLogger] = useState(Boolean(initialTimerSession));
   const [editingWorkoutId, setEditingWorkoutId] = useState(null);
@@ -900,6 +909,13 @@ function App() {
   const [generatorRestDays, setGeneratorRestDays] = useState(true);
   const [generatedDays, setGeneratedDays] = useState([]);
   const [generatorNotice, setGeneratorNotice] = useState('');
+
+  useEffect(() => {
+    const syncScreen = () => setActiveScreen(getScreenFromHash());
+    window.addEventListener('hashchange', syncScreen);
+    syncScreen();
+    return () => window.removeEventListener('hashchange', syncScreen);
+  }, []);
 
   useEffect(() => {
     if (!timerSession) return undefined;
@@ -2811,6 +2827,7 @@ function App() {
   }
 
   function openLogger() {
+    setActiveScreen('workouts');
     if (timerSession) {
       setShowLogger(true);
       return;
@@ -2824,6 +2841,7 @@ function App() {
   }
 
   function openEditLogger(workout) {
+    setActiveScreen('workouts');
     setEditingWorkoutId(workout.id);
     setWorkoutName(workout.name);
     setDuration(String(Number.parseInt(workout.duration, 10) || 45));
@@ -3126,12 +3144,12 @@ function App() {
         <div className="sidebar-label">WORKSPACE</div>
 
         <nav className="side-nav">
-          <a className="nav-item active" href="#overview">Dashboard</a>
-          <a className="nav-item" href="#workout-logger">Workouts</a>
-          <a className="nav-item" href="#history">History</a>
-          <a className="nav-item" href="#plans">Plans</a>
-          <a className="nav-item" href="#progress">Progress</a>
-          <a className="nav-item" href="#personal-records">Personal records</a>
+          <a className={activeScreen === 'dashboard' ? 'nav-item active' : 'nav-item'} href="#overview">Dashboard</a>
+          <a className={activeScreen === 'workouts' ? 'nav-item active' : 'nav-item'} href="#workout-logger" onClick={openLogger}>Workouts</a>
+          <a className={activeScreen === 'history' ? 'nav-item active' : 'nav-item'} href="#history">History</a>
+          <a className={activeScreen === 'plans' ? 'nav-item active' : 'nav-item'} href="#plans">Plans</a>
+          <a className={activeScreen === 'progress' ? 'nav-item active' : 'nav-item'} href="#progress">Progress</a>
+          <a className={activeScreen === 'personal-records' ? 'nav-item active' : 'nav-item'} href="#personal-records">Personal records</a>
           <a className="nav-item" href="#settings">Settings</a>
         </nav>
 
@@ -3143,19 +3161,39 @@ function App() {
           <div className="sidebar-caption">YOUR TRAINING. YOUR DATA.</div>
         </div>
       </aside>
+      <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
+        {[
+          ['overview', 'Home'],
+          ['workout-logger', 'Workouts'],
+          ['history', 'History'],
+          ['progress', 'Progress'],
+        ].map(([href, label]) => {
+          const screen = href === 'overview' ? 'dashboard' : href === 'workout-logger' ? 'workouts' : href;
+          return <a className={activeScreen === screen ? 'active' : ''} href={`#${href}`} onClick={href === 'workout-logger' ? openLogger : undefined} key={href}><span>{label === 'Home' ? '⌂' : label === 'Workouts' ? '+' : label === 'History' ? '▤' : '↗'}</span>{label}</a>;
+        })}
+      </nav>
 
       <main className="main-content">
         <header className="topbar">
           <div>
             <div className="eyebrow">PERSONAL TRAINING DASHBOARD</div>
-            <h1>Training overview</h1>
-            <p className="page-subtitle">Track your work. Build consistency.</p>
+            <h1>{activeScreen === 'dashboard' ? 'Ready for today?' : activeScreen === 'workouts' ? 'Your workout' : activeScreen === 'history' ? 'Workout history' : activeScreen === 'plans' ? 'Workout plans' : activeScreen === 'progress' ? 'Progress overview' : 'Personal records'}</h1>
+            <p className="page-subtitle">{activeScreen === 'dashboard' ? 'Track your work. Build consistency.' : 'Keep your training simple, consistent, and visible.'}</p>
           </div>
 
           <button className="primary-button" onClick={openLogger}>
             + Log workout
           </button>
         </header>
+
+        {activeScreen === 'workouts' && !showLogger && (
+          <section className="workout-screen-empty panel">
+            <div className="eyebrow">WORKOUTS</div>
+            <h2>Ready for today's workout?</h2>
+            <p>Start a session, choose your exercises, and record the work you complete.</p>
+            <button className="primary-button" onClick={openLogger}>Start workout</button>
+          </section>
+        )}
 
         {showAdvancedFeatures && timerSession && (
           <section className={`active-workout-panel ${timerSession.status}`} aria-live="polite">
@@ -3239,7 +3277,7 @@ function App() {
           </section>
         )}
 
-        <section className="stats-grid" id="overview">
+        {activeScreen === 'dashboard' && <section className="stats-grid" id="overview">
           <article className="stat-card">
             <div className="stat-top">
               <span>Total workouts</span>
@@ -3285,7 +3323,7 @@ function App() {
             </div>
             <div className="stat-foot">Consecutive training days</div>
           </article>
-        </section>
+        </section>}
 
         {showAdvancedFeatures && <section className="panel body-overview-card">
           <div>
@@ -3343,7 +3381,7 @@ function App() {
           <a className="secondary-button" href="#nutrition">Open nutrition ↗</a>
         </section>}
 
-        <section className="content-grid" id="progress">
+        {activeScreen === 'dashboard' && <section className="content-grid" id="dashboard-progress">
           <article className="panel activity-panel">
             <div className="panel-heading">
               <div>
@@ -3425,7 +3463,24 @@ function App() {
               Record a session <span>↗</span>
             </button>
           </article>
-        </section>
+        </section>}
+
+        {activeScreen === 'dashboard' && (
+          <section className="workspace-grid" aria-label="Workout workspace">
+            {[
+              ['history', 'History', 'Review your saved sessions and backups.'],
+              ['plans', 'Workout plans', 'Build a simple routine for your week.'],
+              ['progress', 'Progress', 'See exercise trends and comparisons.'],
+              ['personal-records', 'Personal records', 'Celebrate your strongest performances.'],
+            ].map(([href, title, description]) => (
+              <a className="workspace-card" href={`#${href}`} key={href}>
+                <span className="workspace-card-arrow">↗</span>
+                <strong>{title}</strong>
+                <span>{description}</span>
+              </a>
+            ))}
+          </section>
+        )}
 
         {/* WORKOUT INSIGHTS */}
         {showAdvancedFeatures && (<section className="panel insights-panel" id="insights">
@@ -4187,7 +4242,7 @@ function App() {
         </section>)}
 
         {/* EXERCISE HISTORY */}
-        <section className="panel exercise-history-panel" id="exercise-history">
+        {activeScreen === 'progress' && <section className="panel exercise-history-panel" id="exercise-history">
           <div className="history-heading">
             <div>
               <div className="eyebrow">EXERCISE BREAKDOWN</div>
@@ -4390,7 +4445,7 @@ function App() {
               Log a workout with exercises to build your exercise history.
             </div>
           )}
-        </section>
+        </section>}
 
         {showAdvancedFeatures && (<><section className="panel goals-panel" id="goals">
           <div className="history-heading">
@@ -4541,7 +4596,7 @@ function App() {
           )}
         </section></>)}
 
-        <section className="panel pr-notifications-panel" id="pr-notifications">
+        {activeScreen === 'personal-records' && <section className="panel pr-notifications-panel" id="pr-notifications">
           <div className="history-heading">
             <div>
               <div className="eyebrow">ACHIEVEMENT LOG</div>
@@ -4587,10 +4642,10 @@ function App() {
               New personal bests will appear here after you save a workout.
             </div>
           )}
-        </section>
+        </section>}
 
         {/* PERSONAL RECORDS */}
-        <section className="panel personal-records-panel" id="personal-records">
+        {activeScreen === 'personal-records' && <section className="panel personal-records-panel" id="personal-records">
           <div className="history-heading">
             <div>
               <div className="eyebrow">YOUR BEST PERFORMANCE</div>
@@ -4646,10 +4701,10 @@ function App() {
               Save workouts with exercise sets, reps, and weights to start building your personal records.
             </div>
           )}
-        </section>
+        </section>}
 
         {/* PERSONALIZED WORKOUT PLANS */}
-        <section className="panel plans-panel" id="plans">
+        {activeScreen === 'plans' && <section className="panel plans-panel" id="plans">
           <div className="history-heading">
             <div>
               <div className="eyebrow">STRUCTURED TRAINING</div>
@@ -4769,10 +4824,10 @@ function App() {
               })()}
             </>
           )}
-        </section>
+        </section>}
 
         {/* WORKOUT HISTORY */}
-        <section className="panel history-panel" id="history">
+        {activeScreen === 'history' && <section className="panel history-panel" id="history">
           <div className="history-heading">
             <div>
               <div className="eyebrow">YOUR TRAINING LOG</div>
@@ -4908,7 +4963,7 @@ function App() {
               </button>
             </div>
           )}
-        </section>
+        </section>}
 
         <footer className="app-footer">
           <span>
