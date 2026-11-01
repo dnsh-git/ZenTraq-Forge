@@ -8,6 +8,9 @@ const GOALS_KEY = 'zentraq-goals';
 const GOAL_NOTIFICATIONS_KEY = 'zentraq-goal-notifications';
 const MUSCLE_OVERRIDES_KEY = 'zentraq-muscle-overrides';
 const BODY_METRICS_KEY = 'zentraq-body-metrics';
+const CUSTOM_EXERCISES_KEY = 'zentraq-custom-exercises';
+const FAVORITE_EXERCISES_KEY = 'zentraq-exercise-favorites';
+const RECENT_EXERCISES_KEY = 'zentraq-recent-exercises';
 const TIMER_SESSION_KEY = 'zentraq-active-timer-session';
 const TIMER_PREFERENCES_KEY = 'zentraq-timer-preferences';
 
@@ -43,6 +46,94 @@ const MUSCLE_GROUPS = [
   'Legs',
   'Core',
   'Other',
+];
+
+const LIBRARY_MUSCLE_GROUPS = [
+  'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Quadriceps',
+  'Hamstrings', 'Glutes', 'Calves', 'Core', 'Forearms', 'Other',
+];
+
+const EXERCISE_EQUIPMENT = [
+  'Barbell', 'Dumbbell', 'Cable', 'Machine', 'Smith Machine',
+  'Resistance Band', 'Bodyweight', 'Kettlebell', 'Other',
+];
+
+const EXERCISE_DIFFICULTIES = ['Beginner', 'Intermediate', 'Advanced'];
+const EXERCISE_TYPES = ['Weighted', 'Bodyweight', 'Duration-based', 'Distance-based'];
+
+const BUILT_IN_EXERCISES = [
+  {
+    id: 'bench-press', name: 'Bench Press', primaryMuscle: 'Chest',
+    secondaryMuscles: ['Triceps', 'Shoulders'], equipment: 'Barbell',
+    category: 'Strength', difficulty: 'Intermediate', type: 'Weighted',
+    description: 'A horizontal pressing exercise for building upper-body strength.',
+    instructions: ['Set your eyes beneath the bar and grip it just outside shoulder width.', 'Lower the bar with control toward your mid-chest.', 'Press through both hands until your elbows are extended.'],
+    tips: ['Keep your shoulder blades pulled back.', 'Use a controlled touch and avoid bouncing the bar.'],
+    mistakes: ['Flaring the elbows excessively.', 'Lifting the hips from the bench.'],
+  },
+  {
+    id: 'back-squat', name: 'Back Squat', primaryMuscle: 'Quadriceps',
+    secondaryMuscles: ['Glutes', 'Hamstrings', 'Core'], equipment: 'Barbell',
+    category: 'Strength', difficulty: 'Intermediate', type: 'Weighted',
+    description: 'A compound lower-body exercise performed with a bar across the upper back.',
+    instructions: ['Brace your trunk and position the bar securely across your upper back.', 'Sit down and back while keeping your feet planted.', 'Drive through the floor to stand tall.'],
+    tips: ['Keep your knees tracking with your toes.', 'Maintain a neutral spine throughout the rep.'],
+    mistakes: ['Allowing the knees to collapse inward.', 'Losing brace at the bottom.'],
+  },
+  {
+    id: 'deadlift', name: 'Deadlift', primaryMuscle: 'Hamstrings',
+    secondaryMuscles: ['Glutes', 'Back', 'Forearms'], equipment: 'Barbell',
+    category: 'Strength', difficulty: 'Advanced', type: 'Weighted',
+    description: 'A hip-hinge movement that trains the posterior chain.',
+    instructions: ['Stand with the bar over your mid-foot.', 'Brace and hinge to grip the bar.', 'Push the floor away and stand with the bar close to your body.'],
+    tips: ['Keep the bar close to your legs.', 'Brace before each repetition.'],
+    mistakes: ['Rounding the lower back.', 'Jerking the bar from the floor.'],
+  },
+  {
+    id: 'lat-pulldown', name: 'Lat Pulldown', primaryMuscle: 'Back',
+    secondaryMuscles: ['Biceps', 'Forearms'], equipment: 'Cable',
+    category: 'Pull', difficulty: 'Beginner', type: 'Weighted',
+    description: 'A vertical pulling exercise that emphasizes the lats.',
+    instructions: ['Sit tall and grip the bar slightly wider than shoulder width.', 'Pull the bar toward your upper chest.', 'Return it slowly until your elbows extend.'],
+    tips: ['Lead with your elbows.', 'Avoid swinging your torso.'],
+    mistakes: ['Pulling behind the neck.', 'Using momentum instead of controlled tension.'],
+  },
+  {
+    id: 'overhead-press', name: 'Overhead Press', primaryMuscle: 'Shoulders',
+    secondaryMuscles: ['Triceps', 'Core'], equipment: 'Barbell',
+    category: 'Strength', difficulty: 'Intermediate', type: 'Weighted',
+    description: 'An overhead pressing movement for the shoulders and triceps.',
+    instructions: ['Start with the bar at shoulder height.', 'Brace and press the bar overhead.', 'Lower it under control to the starting position.'],
+    tips: ['Keep the ribs down.', 'Finish with the bar stacked over your shoulders and hips.'],
+    mistakes: ['Leaning back excessively.', 'Pressing around the face instead of moving the head naturally.'],
+  },
+  {
+    id: 'push-up', name: 'Push-Up', primaryMuscle: 'Chest',
+    secondaryMuscles: ['Triceps', 'Core'], equipment: 'Bodyweight',
+    category: 'Strength', difficulty: 'Beginner', type: 'Bodyweight',
+    description: 'A bodyweight horizontal press with a scalable difficulty.',
+    instructions: ['Place your hands beneath your shoulders.', 'Lower your chest while keeping your body in one line.', 'Press the floor away to return to the top.'],
+    tips: ['Brace your glutes and abs.', 'Use a range of motion you can control.'],
+    mistakes: ['Sagging the hips.', 'Moving the head instead of the torso.'],
+  },
+  {
+    id: 'dumbbell-curl', name: 'Dumbbell Curl', primaryMuscle: 'Biceps',
+    secondaryMuscles: ['Forearms'], equipment: 'Dumbbell',
+    category: 'Isolation', difficulty: 'Beginner', type: 'Weighted',
+    description: 'An elbow-flexion exercise targeting the biceps.',
+    instructions: ['Stand tall with a dumbbell in each hand.', 'Curl the weights while keeping your elbows near your sides.', 'Lower slowly to full elbow extension.'],
+    tips: ['Keep the shoulders relaxed.', 'Avoid swinging the weights.'],
+    mistakes: ['Using momentum.', 'Shortening the lowering phase.'],
+  },
+  {
+    id: 'plank', name: 'Plank', primaryMuscle: 'Core',
+    secondaryMuscles: ['Shoulders'], equipment: 'Bodyweight',
+    category: 'Core', difficulty: 'Beginner', type: 'Duration-based',
+    description: 'An isometric trunk exercise focused on maintaining a strong body line.',
+    instructions: ['Set your elbows under your shoulders.', 'Brace your abdomen and squeeze your glutes.', 'Hold the position while breathing steadily.'],
+    tips: ['Keep your hips level.', 'Stop before your position breaks down.'],
+    mistakes: ['Holding your breath.', 'Allowing the lower back to arch.'],
+  },
 ];
 
 const DEFAULT_MUSCLE_MAP = {
@@ -217,6 +308,39 @@ function loadStoredObject(key) {
   } catch {
     return {};
   }
+}
+
+function normalizeExerciseName(name) {
+  return String(name || '').trim().replace(/\s+/g, ' ');
+}
+
+function loadCustomExercises() {
+  return loadStoredArray(CUSTOM_EXERCISES_KEY)
+    .filter(item =>
+      item &&
+      typeof item.id === 'string' &&
+      typeof item.name === 'string' &&
+      item.name.trim()
+    )
+    .map(item => ({
+      ...item,
+      name: normalizeExerciseName(item.name),
+      primaryMuscle: LIBRARY_MUSCLE_GROUPS.includes(item.primaryMuscle) ? item.primaryMuscle : 'Other',
+      secondaryMuscles: Array.isArray(item.secondaryMuscles) ? item.secondaryMuscles : [],
+      equipment: EXERCISE_EQUIPMENT.includes(item.equipment) ? item.equipment : 'Other',
+      difficulty: EXERCISE_DIFFICULTIES.includes(item.difficulty) ? item.difficulty : 'Beginner',
+      type: EXERCISE_TYPES.includes(item.type) ? item.type : 'Weighted',
+      category: typeof item.category === 'string' && item.category.trim() ? item.category : 'Custom',
+      description: typeof item.description === 'string' ? item.description : 'Custom exercise saved in your library.',
+      instructions: Array.isArray(item.instructions) ? item.instructions.filter(step => typeof step === 'string') : [],
+      tips: Array.isArray(item.tips) ? item.tips.filter(tip => typeof tip === 'string') : [],
+      mistakes: Array.isArray(item.mistakes) ? item.mistakes.filter(mistake => typeof mistake === 'string') : [],
+      custom: true,
+    }));
+}
+
+function loadStringArray(key) {
+  return loadStoredArray(key).filter(item => typeof item === 'string');
 }
 
 function loadTimerSession() {
@@ -572,6 +696,30 @@ function App() {
   const [selectedBodyPart, setSelectedBodyPart] = useState('Waist');
   const [bodySearch, setBodySearch] = useState('');
   const [bodySort, setBodySort] = useState('newest');
+  const [customExercises, setCustomExercises] = useState(loadCustomExercises);
+  const [favoriteExercises, setFavoriteExercises] = useState(
+    () => loadStringArray(FAVORITE_EXERCISES_KEY)
+  );
+  const [recentExercises, setRecentExercises] = useState(
+    () => loadStringArray(RECENT_EXERCISES_KEY)
+  );
+  const [librarySearch, setLibrarySearch] = useState('');
+  const [libraryMuscleFilter, setLibraryMuscleFilter] = useState('all');
+  const [libraryEquipmentFilter, setLibraryEquipmentFilter] = useState('all');
+  const [libraryDifficultyFilter, setLibraryDifficultyFilter] = useState('all');
+  const [libraryCategoryFilter, setLibraryCategoryFilter] = useState('all');
+  const [selectedLibraryExerciseId, setSelectedLibraryExerciseId] = useState(null);
+  const [showExerciseBuilder, setShowExerciseBuilder] = useState(false);
+  const [editingExerciseId, setEditingExerciseId] = useState(null);
+  const [exerciseBuilderName, setExerciseBuilderName] = useState('');
+  const [exerciseBuilderPrimary, setExerciseBuilderPrimary] = useState('Other');
+  const [exerciseBuilderSecondary, setExerciseBuilderSecondary] = useState([]);
+  const [exerciseBuilderEquipment, setExerciseBuilderEquipment] = useState('Other');
+  const [exerciseBuilderDifficulty, setExerciseBuilderDifficulty] = useState('Beginner');
+  const [exerciseBuilderType, setExerciseBuilderType] = useState('Weighted');
+  const [exerciseBuilderCategory, setExerciseBuilderCategory] = useState('Custom');
+  const [exerciseBuilderDescription, setExerciseBuilderDescription] = useState('');
+  const [exerciseBuilderInstructions, setExerciseBuilderInstructions] = useState('');
   const importInputRef = useRef(null);
 
   // Personalized workout plan state
@@ -671,6 +819,51 @@ function App() {
         exercise.name.trim(),
       ])
   ).values()].sort((a, b) => a.localeCompare(b));
+
+  const allLibraryExercises = [...BUILT_IN_EXERCISES, ...customExercises].map(exercise => ({
+    image: null,
+    ...exercise,
+  }));
+  const libraryCategories = [...new Set(allLibraryExercises.map(exercise => exercise.category))].sort();
+  const libraryExerciseNames = allLibraryExercises.map(exercise => exercise.name);
+  const selectedLibraryExercise = allLibraryExercises.find(
+    exercise => exercise.id === selectedLibraryExerciseId
+  ) || null;
+  const filteredLibraryExercises = allLibraryExercises.filter(exercise => {
+    const query = librarySearch.trim().toLowerCase();
+    return (!query ||
+      exercise.name.toLowerCase().includes(query) ||
+      exercise.description.toLowerCase().includes(query) ||
+      exercise.primaryMuscle.toLowerCase().includes(query)) &&
+      (libraryMuscleFilter === 'all' || exercise.primaryMuscle === libraryMuscleFilter) &&
+      (libraryEquipmentFilter === 'all' || exercise.equipment === libraryEquipmentFilter) &&
+      (libraryDifficultyFilter === 'all' || exercise.difficulty === libraryDifficultyFilter) &&
+      (libraryCategoryFilter === 'all' || exercise.category === libraryCategoryFilter);
+  });
+  const selectedLibraryHistory = selectedLibraryExercise
+    ? realWorkouts.flatMap(workout =>
+        (workout.exercises || [])
+          .filter(exercise =>
+            normalizeExerciseName(exercise.name).toLowerCase() ===
+            selectedLibraryExercise.name.toLowerCase()
+          )
+          .map(exercise => ({
+            date: workout.date,
+            workoutName: workout.name,
+            ...getExerciseMetrics(exercise),
+          }))
+      ).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)
+    : [];
+  const suggestedLibraryExercises = allLibraryExercises.filter(exercise => {
+    const usedInPlans = plans.some(plan =>
+      plan.days.some(day => day.exercises.some(name =>
+        normalizeExerciseName(name).toLowerCase() === exercise.name.toLowerCase()
+      ))
+    );
+    const recent = recentExercises.includes(exercise.name);
+    return recent || usedInPlans ||
+      (selectedLibraryExercise && exercise.primaryMuscle === selectedLibraryExercise.primaryMuscle);
+  }).slice(0, 5);
 
   const currentStreak = calculateStreak(realWorkouts);
   const activeTimerElapsed = getElapsedTimerMs(timerSession, timerNow);
@@ -1109,6 +1302,12 @@ function App() {
     };
   }).filter(record => record.sessions > 0);
 
+  const selectedLibraryRecord = selectedLibraryExercise
+    ? personalRecords.find(record =>
+        record.name.toLowerCase() === selectedLibraryExercise.name.toLowerCase()
+      )
+    : null;
+
   // Save workout plans
   function persistPlans(updated) {
     try {
@@ -1469,6 +1668,118 @@ function App() {
     persistBodyEntries(bodyEntries.filter(item => item.id !== id));
   }
 
+  function persistCustomExercises(updated) {
+    try {
+      localStorage.setItem(CUSTOM_EXERCISES_KEY, JSON.stringify(updated));
+      setCustomExercises(updated);
+      return true;
+    } catch {
+      setNotice('Could not save custom exercises. Check browser storage.');
+      return false;
+    }
+  }
+
+  function persistExerciseList(key, updated, setter, message) {
+    try {
+      localStorage.setItem(key, JSON.stringify(updated));
+      setter(updated);
+    } catch {
+      setNotice(message);
+    }
+  }
+
+  function toggleFavoriteExercise(name) {
+    const normalized = normalizeExerciseName(name);
+    const updated = favoriteExercises.includes(normalized)
+      ? favoriteExercises.filter(item => item !== normalized)
+      : [...favoriteExercises, normalized];
+    persistExerciseList(
+      FAVORITE_EXERCISES_KEY,
+      updated,
+      setFavoriteExercises,
+      'Could not update favorites. Check browser storage.'
+    );
+  }
+
+  function rememberExercise(name) {
+    const normalized = normalizeExerciseName(name);
+    if (!normalized) return;
+    const updated = [
+      normalized,
+      ...recentExercises.filter(item => item.toLowerCase() !== normalized.toLowerCase()),
+    ].slice(0, 12);
+    persistExerciseList(
+      RECENT_EXERCISES_KEY,
+      updated,
+      setRecentExercises,
+      'Could not update recent exercises. Check browser storage.'
+    );
+  }
+
+  function openExerciseBuilder(exercise = null) {
+    setEditingExerciseId(exercise?.id || null);
+    setExerciseBuilderName(exercise?.name || '');
+    setExerciseBuilderPrimary(exercise?.primaryMuscle || 'Other');
+    setExerciseBuilderSecondary(exercise?.secondaryMuscles || []);
+    setExerciseBuilderEquipment(exercise?.equipment || 'Other');
+    setExerciseBuilderDifficulty(exercise?.difficulty || 'Beginner');
+    setExerciseBuilderType(exercise?.type || 'Weighted');
+    setExerciseBuilderCategory(exercise?.category || 'Custom');
+    setExerciseBuilderDescription(exercise?.description || '');
+    setExerciseBuilderInstructions((exercise?.instructions || []).join('\n'));
+    setNotice('');
+    setShowExerciseBuilder(true);
+  }
+
+  function saveCustomExercise(event) {
+    event.preventDefault();
+    const name = normalizeExerciseName(exerciseBuilderName);
+    if (!name) {
+      setNotice('Enter an exercise name.');
+      return;
+    }
+
+    const duplicate = allLibraryExercises.find(exercise =>
+      exercise.id !== editingExerciseId &&
+      exercise.name.toLowerCase() === name.toLowerCase()
+    );
+    if (duplicate) {
+      setNotice('An exercise with that name already exists.');
+      return;
+    }
+
+    const existing = customExercises.find(exercise => exercise.id === editingExerciseId);
+    const exercise = {
+      id: existing?.id || `custom-${crypto.randomUUID()}`,
+      name,
+      primaryMuscle: exerciseBuilderPrimary,
+      secondaryMuscles: exerciseBuilderSecondary,
+      equipment: exerciseBuilderEquipment,
+      difficulty: exerciseBuilderDifficulty,
+      type: exerciseBuilderType,
+      category: exerciseBuilderCategory.trim() || 'Custom',
+      description: exerciseBuilderDescription.trim() || 'Custom exercise saved in your library.',
+      instructions: exerciseBuilderInstructions.split('\n').map(item => item.trim()).filter(Boolean),
+      tips: [],
+      mistakes: [],
+      custom: true,
+    };
+    const updated = existing
+      ? customExercises.map(item => item.id === existing.id ? exercise : item)
+      : [exercise, ...customExercises];
+
+    if (persistCustomExercises(updated)) {
+      setSelectedLibraryExerciseId(exercise.id);
+      setShowExerciseBuilder(false);
+    }
+  }
+
+  function deleteCustomExercise(exercise) {
+    if (!exercise.custom || !window.confirm(`Delete "${exercise.name}" from your library? Historical workouts will remain readable.`)) return;
+    persistCustomExercises(customExercises.filter(item => item.id !== exercise.id));
+    if (selectedLibraryExerciseId === exercise.id) setSelectedLibraryExerciseId(null);
+  }
+
   function dismissPRNotification(id) {
     setActivePRNotifications(current =>
       current.filter(notification => notification.id !== id)
@@ -1624,6 +1935,9 @@ function App() {
         goalNotifications,
         muscleOverrides,
         bodyEntries,
+        customExercises,
+        favoriteExercises,
+        recentExercises,
       };
 
       const blob = new Blob(
@@ -1664,6 +1978,9 @@ function App() {
         ? null
         : parsed.muscleOverrides;
       const importedBodyEntries = Array.isArray(parsed) ? null : parsed.bodyEntries;
+      const importedCustomExercises = Array.isArray(parsed) ? null : parsed.customExercises;
+      const importedFavorites = Array.isArray(parsed) ? null : parsed.favoriteExercises;
+      const importedRecent = Array.isArray(parsed) ? null : parsed.recentExercises;
 
       if (!Array.isArray(imported)) {
         throw new Error('Invalid backup format.');
@@ -1713,6 +2030,25 @@ function App() {
         }
         if (Array.isArray(importedBodyEntries)) {
           persistBodyEntries(importedBodyEntries);
+        }
+        if (Array.isArray(importedCustomExercises)) {
+          persistCustomExercises(importedCustomExercises);
+        }
+        if (Array.isArray(importedFavorites)) {
+          persistExerciseList(
+            FAVORITE_EXERCISES_KEY,
+            importedFavorites,
+            setFavoriteExercises,
+            'Could not import exercise favorites.'
+          );
+        }
+        if (Array.isArray(importedRecent)) {
+          persistExerciseList(
+            RECENT_EXERCISES_KEY,
+            importedRecent,
+            setRecentExercises,
+            'Could not import recent exercises.'
+          );
         }
         setNotice(`Successfully imported ${cleaned.length} workouts.`);
       }
@@ -2040,6 +2376,19 @@ function App() {
       : [newWorkout, ...realWorkouts];
 
     if (persistWorkouts(updated)) {
+      const newlyUsed = validExercises.map(exercise => normalizeExerciseName(exercise.name));
+      const updatedRecent = [
+        ...newlyUsed.reverse(),
+        ...recentExercises.filter(item =>
+          !newlyUsed.some(name => name.toLowerCase() === item.toLowerCase())
+        ),
+      ].slice(0, 12);
+      persistExerciseList(
+        RECENT_EXERCISES_KEY,
+        updatedRecent,
+        setRecentExercises,
+        'Could not update recent exercises.'
+      );
       if (newPRs.length) {
         persistPRNotifications([...newPRs, ...prNotifications]);
         setActivePRNotifications(newPRs);
@@ -2174,6 +2523,7 @@ function App() {
           <a className="nav-item" href="#pr-notifications">PR notifications</a>
           <a className="nav-item" href="#goals">Goals & milestones</a>
           <a className="nav-item" href="#plans">Workout plans</a>
+          <a className="nav-item" href="#exercise-library">Exercise library</a>
         </nav>
 
         <div className="sidebar-bottom">
@@ -2872,6 +3222,202 @@ function App() {
               <h3>Your transformation starts with a check-in.</h3>
               <p>Record body weight or any measurements to begin tracking change over time.</p>
               <button className="secondary-button" onClick={openBodyBuilder}>Add your first check-in</button>
+            </div>
+          )}
+        </section>
+
+        {/* EXERCISE LIBRARY */}
+        <section className="panel exercise-library-panel" id="exercise-library">
+          <div className="history-heading">
+            <div>
+              <div className="eyebrow">SMART EXERCISE DATABASE</div>
+              <h2>Exercise library</h2>
+              <p className="history-subtitle">
+                Browse structured exercises, save favorites, and add your own movements.
+              </p>
+            </div>
+            <button className="primary-button" onClick={() => openExerciseBuilder()}>
+              + Custom exercise
+            </button>
+          </div>
+
+          <div className="library-controls">
+            <input
+              type="search"
+              value={librarySearch}
+              onChange={event => setLibrarySearch(event.target.value)}
+              placeholder="Search exercises..."
+              aria-label="Search exercise library"
+            />
+            <select value={libraryMuscleFilter} onChange={event => setLibraryMuscleFilter(event.target.value)} aria-label="Filter library by muscle">
+              <option value="all">All muscles</option>
+              {LIBRARY_MUSCLE_GROUPS.map(group => <option value={group} key={group}>{group}</option>)}
+            </select>
+            <select value={libraryEquipmentFilter} onChange={event => setLibraryEquipmentFilter(event.target.value)} aria-label="Filter library by equipment">
+              <option value="all">All equipment</option>
+              {EXERCISE_EQUIPMENT.map(item => <option value={item} key={item}>{item}</option>)}
+            </select>
+            <select value={libraryDifficultyFilter} onChange={event => setLibraryDifficultyFilter(event.target.value)} aria-label="Filter library by difficulty">
+              <option value="all">All levels</option>
+              {EXERCISE_DIFFICULTIES.map(item => <option value={item} key={item}>{item}</option>)}
+            </select>
+            <select value={libraryCategoryFilter} onChange={event => setLibraryCategoryFilter(event.target.value)} aria-label="Filter library by category">
+              <option value="all">All categories</option>
+              {libraryCategories.map(item => <option value={item} key={item}>{item}</option>)}
+            </select>
+            <button
+              type="button"
+              className="clear-button"
+              onClick={() => {
+                setLibrarySearch('');
+                setLibraryMuscleFilter('all');
+                setLibraryEquipmentFilter('all');
+                setLibraryDifficultyFilter('all');
+                setLibraryCategoryFilter('all');
+              }}
+            >
+              Reset filters
+            </button>
+          </div>
+
+          <div className="library-quick-row">
+            <span>RECENT</span>
+            {(recentExercises.length ? recentExercises : ['No recent exercises']).slice(0, 5).map(name => (
+              <button
+                type="button"
+                key={name}
+                className="library-chip"
+                disabled={name === 'No recent exercises'}
+                onClick={() => {
+                  const match = allLibraryExercises.find(item => item.name.toLowerCase() === name.toLowerCase());
+                  if (match) setSelectedLibraryExerciseId(match.id);
+                }}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+
+          <div className="library-layout">
+            <div className="library-list">
+              {filteredLibraryExercises.length ? filteredLibraryExercises.map(exercise => (
+                <article
+                  className={selectedLibraryExercise?.id === exercise.id ? 'library-card selected' : 'library-card'}
+                  key={exercise.id}
+                  onClick={() => setSelectedLibraryExerciseId(exercise.id)}
+                >
+                  <div className="library-card-top">
+                    <div>
+                      <span className="library-card-category">{exercise.custom ? 'CUSTOM' : exercise.category}</span>
+                      <h3>{exercise.name}</h3>
+                    </div>
+                    <button
+                      type="button"
+                      className={favoriteExercises.includes(exercise.name) ? 'library-favorite active' : 'library-favorite'}
+                      onClick={event => {
+                        event.stopPropagation();
+                        toggleFavoriteExercise(exercise.name);
+                      }}
+                      aria-label={`${favoriteExercises.includes(exercise.name) ? 'Remove' : 'Add'} ${exercise.name} favorite`}
+                    >
+                      {favoriteExercises.includes(exercise.name) ? '★' : '☆'}
+                    </button>
+                  </div>
+                  <p>{exercise.description}</p>
+                  <div className="library-card-meta">
+                    <span>{exercise.primaryMuscle}</span>
+                    <span>{exercise.equipment}</span>
+                    <span>{exercise.difficulty}</span>
+                  </div>
+                </article>
+              )) : (
+                <div className="progress-empty">No exercises match these filters.</div>
+              )}
+            </div>
+
+            <aside className="library-detail">
+              {selectedLibraryExercise ? (
+                <>
+                  <div className="library-detail-heading">
+                    <div>
+                      <span className="library-card-category">{selectedLibraryExercise.custom ? 'CUSTOM EXERCISE' : selectedLibraryExercise.category}</span>
+                      <h3>{selectedLibraryExercise.name}</h3>
+                    </div>
+                    <div className="record-actions">
+                      {selectedLibraryExercise.custom && (
+                        <>
+                          <button type="button" onClick={() => openExerciseBuilder(selectedLibraryExercise)}>Edit</button>
+                          <button type="button" onClick={() => deleteCustomExercise(selectedLibraryExercise)}>Delete</button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <p>{selectedLibraryExercise.description}</p>
+                  <div className="library-detail-tags">
+                    <span>{selectedLibraryExercise.primaryMuscle}</span>
+                    {selectedLibraryExercise.secondaryMuscles.map(muscle => <span key={muscle}>{muscle}</span>)}
+                    <span>{selectedLibraryExercise.equipment}</span>
+                    <span>{selectedLibraryExercise.difficulty}</span>
+                    <span>{selectedLibraryExercise.type}</span>
+                  </div>
+                  <h4>Instructions</h4>
+                  <ol>{selectedLibraryExercise.instructions.map(step => <li key={step}>{step}</li>)}</ol>
+                  {selectedLibraryExercise.tips.length > 0 && (
+                    <>
+                      <h4>Technique tips</h4>
+                      <ul>{selectedLibraryExercise.tips.map(tip => <li key={tip}>{tip}</li>)}</ul>
+                    </>
+                  )}
+                  {selectedLibraryExercise.mistakes.length > 0 && (
+                    <>
+                      <h4>Common mistakes</h4>
+                      <ul>{selectedLibraryExercise.mistakes.map(mistake => <li key={mistake}>{mistake}</li>)}</ul>
+                    </>
+                  )}
+                  <div className="library-performance">
+                    <h4>Your performance</h4>
+                    {selectedLibraryRecord ? (
+                      <p>
+                        Best weight: <strong>{selectedLibraryRecord.heaviest.weight} kg</strong>
+                        {' · '}Best volume: <strong>{selectedLibraryRecord.highestVolume.volume} kg</strong>
+                      </p>
+                    ) : <p>No saved performance for this exercise yet.</p>}
+                    {selectedLibraryHistory.length > 0 && (
+                      <div>{selectedLibraryHistory.map(entry => (
+                        <span key={`${entry.date}-${entry.workoutName}`}>{entry.date}: {entry.weight} kg · {entry.volume} kg</span>
+                      ))}</div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={() => {
+                      openLogger();
+                      setExercises(current => current.map((item, index) =>
+                        index === 0 ? { ...item, name: selectedLibraryExercise.name } : item
+                      ));
+                      rememberExercise(selectedLibraryExercise.name);
+                    }}
+                  >
+                    Use in workout
+                  </button>
+                </>
+              ) : (
+                <div className="library-detail-empty">
+                  <h3>Select an exercise</h3>
+                  <p>Choose an exercise to view instructions, performance, and workout history.</p>
+                </div>
+              )}
+            </aside>
+          </div>
+          {suggestedLibraryExercises.length > 0 && (
+            <div className="library-suggestions">
+              <h3>Based on your training</h3>
+              <div>{suggestedLibraryExercises.map(exercise => (
+                <button type="button" className="library-chip" key={exercise.id} onClick={() => setSelectedLibraryExerciseId(exercise.id)}>
+                  {exercise.name}
+                </button>
+              ))}</div>
             </div>
           )}
         </section>
@@ -3933,6 +4479,46 @@ function App() {
         </div>
       )}
 
+      {showExerciseBuilder && (
+        <div className="modal-backdrop" onMouseDown={event => {
+          if (event.target === event.currentTarget) setShowExerciseBuilder(false);
+        }}>
+          <section className="workout-modal exercise-builder-modal" role="dialog" aria-modal="true" aria-labelledby="exercise-builder-title">
+            <div className="modal-heading">
+              <div>
+                <div className="eyebrow">{editingExerciseId ? 'UPDATE LIBRARY ENTRY' : 'NEW LIBRARY ENTRY'}</div>
+                <h2 id="exercise-builder-title">{editingExerciseId ? 'Edit custom exercise' : 'Create custom exercise'}</h2>
+              </div>
+              <button type="button" className="modal-close" onClick={() => setShowExerciseBuilder(false)} aria-label="Close">×</button>
+            </div>
+            <form onSubmit={saveCustomExercise}>
+              <label className="form-label">Exercise name<input value={exerciseBuilderName} onChange={event => setExerciseBuilderName(event.target.value)} required /></label>
+              <div className="exercise-fields">
+                <label className="form-label">Primary muscle<select value={exerciseBuilderPrimary} onChange={event => setExerciseBuilderPrimary(event.target.value)}>{LIBRARY_MUSCLE_GROUPS.map(item => <option value={item} key={item}>{item}</option>)}</select></label>
+                <label className="form-label">Equipment<select value={exerciseBuilderEquipment} onChange={event => setExerciseBuilderEquipment(event.target.value)}>{EXERCISE_EQUIPMENT.map(item => <option value={item} key={item}>{item}</option>)}</select></label>
+                <label className="form-label">Difficulty<select value={exerciseBuilderDifficulty} onChange={event => setExerciseBuilderDifficulty(event.target.value)}>{EXERCISE_DIFFICULTIES.map(item => <option value={item} key={item}>{item}</option>)}</select></label>
+              </div>
+              <label className="form-label">Secondary muscles
+                <select multiple value={exerciseBuilderSecondary} onChange={event => setExerciseBuilderSecondary([...event.target.selectedOptions].map(option => option.value))}>
+                  {LIBRARY_MUSCLE_GROUPS.filter(item => item !== exerciseBuilderPrimary).map(item => <option value={item} key={item}>{item}</option>)}
+                </select>
+              </label>
+              <div className="exercise-fields">
+                <label className="form-label">Exercise type<select value={exerciseBuilderType} onChange={event => setExerciseBuilderType(event.target.value)}>{EXERCISE_TYPES.map(item => <option value={item} key={item}>{item}</option>)}</select></label>
+                <label className="form-label">Category<input value={exerciseBuilderCategory} onChange={event => setExerciseBuilderCategory(event.target.value)} placeholder="e.g. Mobility" /></label>
+              </div>
+              <label className="form-label">Description<textarea rows="3" value={exerciseBuilderDescription} onChange={event => setExerciseBuilderDescription(event.target.value)} /></label>
+              <label className="form-label">Instructions (one step per line)<textarea rows="5" value={exerciseBuilderInstructions} onChange={event => setExerciseBuilderInstructions(event.target.value)} placeholder="Set up...\nPerform the movement...\nReturn with control..." /></label>
+              {notice && <p className="form-notice">{notice}</p>}
+              <div className="modal-actions">
+                <button type="button" className="secondary-button" onClick={() => setShowExerciseBuilder(false)}>Cancel</button>
+                <button type="submit" className="primary-button">{editingExerciseId ? 'Save changes' : 'Create exercise'}</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+
       {/* WORKOUT LOGGER MODAL */}
       {showLogger && (
         <div
@@ -4074,10 +4660,23 @@ function App() {
 
                     <label className="form-label">
                       Exercise name
+                      <select
+                        value={exercise.name}
+                        onChange={event => {
+                          updateExercise(exercise.id, 'name', event.target.value);
+                          rememberExercise(event.target.value);
+                        }}
+                        aria-label={`Library exercise ${index + 1}`}
+                      >
+                        <option value="">Choose from library</option>
+                        {[...new Set([...libraryExerciseNames, ...exerciseNames])].sort().map(name => (
+                          <option value={name} key={name}>{name}</option>
+                        ))}
+                      </select>
                       <input
                         value={exercise.name}
                         onChange={event =>
-                          updateExercise(exercise.id, 'name', event.target.value)
+                          updateExercise(exercise.id, 'name', normalizeExerciseName(event.target.value))
                         }
                         placeholder="e.g. Bench Press"
                       />
