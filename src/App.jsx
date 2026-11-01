@@ -4,6 +4,8 @@ import './App.css';
 const STORAGE_KEY = 'zentraq-workouts';
 const PLANS_KEY = 'zentraq-workout-plans';
 const PR_NOTIFICATIONS_KEY = 'zentraq-pr-notifications';
+const GOALS_KEY = 'zentraq-goals';
+const GOAL_NOTIFICATIONS_KEY = 'zentraq-goal-notifications';
 
 const PLAN_TEMPLATES = {
   'Push / Pull / Legs': [
@@ -127,6 +129,91 @@ function loadPRNotifications() {
   }
 }
 
+function loadStoredArray(key) {
+  try {
+    const saved = localStorage.getItem(key);
+    const parsed = saved ? JSON.parse(saved) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function getWeekStartKey(date = new Date()) {
+  const start = new Date(date);
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  return localDateKey(start);
+}
+
+function calculateGoalProgress(goal, workouts) {
+  const startDate = goal.startDate || '0000-00-00';
+  const eligibleWorkouts = workouts.filter(workout => {
+    const dateKey = getWorkoutDateKey(workout);
+    return dateKey && dateKey >= startDate && dateKey <= (goal.targetDate || '9999-12-31');
+  });
+
+  if (goal.type === 'strength') {
+    const weights = eligibleWorkouts.flatMap(workout =>
+      (workout.exercises || [])
+        .filter(exercise =>
+          exercise.name?.trim().toLowerCase() === goal.exerciseName?.trim().toLowerCase()
+        )
+        .map(exercise => getExerciseMetrics(exercise).weight)
+    );
+    return {
+      current: Math.max(0, ...weights),
+      unit: 'kg',
+    };
+  }
+
+  if (goal.type === 'frequency') {
+    const weekStart = getWeekStartKey();
+    const weekEnd = localDateKey(new Date(
+      new Date(`${weekStart}T00:00:00`).getTime() + 6 * 86400000
+    ));
+    return {
+      current: workouts.filter(workout => {
+        const dateKey = getWorkoutDateKey(workout);
+        return dateKey && dateKey >= weekStart && dateKey <= weekEnd;
+      }).length,
+      unit: 'workouts',
+    };
+  }
+
+  if (goal.type === 'volume') {
+    return {
+      current: eligibleWorkouts.reduce(
+        (total, workout) =>
+          total + (Number(String(workout.volume || '').replace(/[^0-9.]/g, '')) || 0),
+        0
+      ),
+      unit: 'kg',
+    };
+  }
+
+  return {
+    current: calculateStreak(eligibleWorkouts),
+    unit: 'days',
+  };
+}
+
+function getGoalStatus(goal, progress, today = localDateKey()) {
+  if (goal.status === 'completed') return 'completed';
+  if (goal.status === 'paused') return 'paused';
+  if (progress >= 100) return 'completed';
+  if (goal.targetDate && today > goal.targetDate) return 'expired';
+  return 'active';
+}
+
+function formatGoalType(type) {
+  return {
+    strength: 'Strength goal',
+    frequency: 'Workout frequency',
+    volume: 'Training volume',
+    consistency: 'Consistency',
+  }[type] || 'Workout goal';
+}
+
 function getExerciseMetrics(exercise) {
   const sets = Number(exercise.sets) || 0;
   const reps = Number(exercise.reps) || 0;
@@ -201,6 +288,19 @@ function App() {
   const [notice, setNotice] = useState('');
   const [prNotifications, setPRNotifications] = useState(loadPRNotifications);
   const [activePRNotifications, setActivePRNotifications] = useState([]);
+  const [goals, setGoals] = useState(() => loadStoredArray(GOALS_KEY));
+  const [goalNotifications, setGoalNotifications] = useState(
+    () => loadStoredArray(GOAL_NOTIFICATIONS_KEY)
+  );
+  const [activeGoalNotifications, setActiveGoalNotifications] = useState([]);
+  const [showGoalBuilder, setShowGoalBuilder] = useState(false);
+  const [editingGoalId, setEditingGoalId] = useState(null);
+  const [goalTitle, setGoalTitle] = useState('');
+  const [goalType, setGoalType] = useState('strength');
+  const [goalTargetValue, setGoalTargetValue] = useState('');
+  const [goalExerciseName, setGoalExerciseName] = useState('');
+  const [goalStartDate, setGoalStartDate] = useState(localDateKey());
+  const [goalTargetDate, setGoalTargetDate] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState('newest');
   const [historyFilter, setHistoryFilter] = useState('all');
@@ -236,6 +336,20 @@ function App() {
   );
 
   const currentStreak = calculateStreak(realWorkouts);
+
+  const goalsWithProgress = goals.map(goal => {
+    const progressData = calculateGoalProgress(goal, realWorkouts);
+    const percentage = goal.targetValue > 0
+      ? Math.min(100, (progressData.current / Number(goal.targetValue)) * 100)
+      : 0;
+
+    return {
+      ...goal,
+      ...progressData,
+      percentage,
+      displayStatus: getGoalStatus(goal, percentage),
+    };
+  });
 
   const weeklyActivity = getWeekDays().map(day => ({
     ...day,
@@ -596,10 +710,88 @@ function App() {
   }
 
   // Save workout records
+  function syncGoalProgress(workoutList, goalList = goals) {
+    if (!goalList.length) return;
+
+    const today = localDateKey();
+    const notifications = [];
+    let goalsChanged = false;
+    const updatedGoals = goalList.map(goal => {
+      const progressData = calculateGoalProgress(goal, workoutList);
+      const percentage = goal.targetValue > 0
+        ? Math.min(100, (progressData.current / Number(goal.targetValue)) * 100)
+        : 0;
+      const previousMilestones = Array.isArray(goal.notifiedMilestones)
+        ? goal.notifiedMilestones
+        : [];
+      const nextMilestones = [...previousMilestones];
+      let nextStatus = getGoalStatus(goal, percentage, today);
+      let completionDate = goal.completionDate || null;
+
+      if (goal.status === 'active') {
+        [25, 50, 75, 100].forEach(milestone => {
+          if (percentage >= milestone && !nextMilestones.includes(milestone)) {
+            nextMilestones.push(milestone);
+            notifications.push({
+              id: crypto.randomUUID(),
+              goalId: goal.id,
+              title: goal.title,
+              milestone,
+              current: progressData.current,
+              target: Number(goal.targetValue),
+              unit: progressData.unit,
+              date: today,
+            });
+          }
+        });
+      }
+
+      if (nextStatus === 'completed' && goal.status !== 'completed') {
+        completionDate = today;
+      }
+
+      const nextGoal = {
+        ...goal,
+        status: nextStatus,
+        completionDate,
+        notifiedMilestones: nextMilestones,
+      };
+
+      if (JSON.stringify(nextGoal) !== JSON.stringify(goal)) {
+        goalsChanged = true;
+      }
+      return nextGoal;
+    });
+
+    if (goalsChanged) {
+      setGoals(updatedGoals);
+      try {
+        localStorage.setItem(GOALS_KEY, JSON.stringify(updatedGoals));
+      } catch {
+        setNotice('Could not update goals. Check your browser storage settings.');
+      }
+    }
+
+    if (notifications.length) {
+      const updatedNotifications = [...notifications, ...goalNotifications];
+      setGoalNotifications(updatedNotifications);
+      setActiveGoalNotifications(notifications);
+      try {
+        localStorage.setItem(
+          GOAL_NOTIFICATIONS_KEY,
+          JSON.stringify(updatedNotifications)
+        );
+      } catch {
+        setNotice('Could not save goal milestones. Check browser storage.');
+      }
+    }
+  }
+
   function persistWorkouts(updated) {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
       setWorkouts(updated);
+      syncGoalProgress(updated);
       return true;
     } catch {
       setNotice('Could not save changes. Check your browser storage settings.');
@@ -630,13 +822,147 @@ function App() {
     );
   }
 
+  function persistGoals(updated) {
+    try {
+      localStorage.setItem(GOALS_KEY, JSON.stringify(updated));
+      setGoals(updated);
+      syncGoalProgress(realWorkouts, updated);
+      return true;
+    } catch {
+      setNotice('Could not save goals. Check your browser storage settings.');
+      return false;
+    }
+  }
+
+  function openGoalBuilder() {
+    setEditingGoalId(null);
+    setGoalTitle('');
+    setGoalType('strength');
+    setGoalTargetValue('');
+    setGoalExerciseName(exerciseNames[0] || '');
+    setGoalStartDate(localDateKey());
+    setGoalTargetDate('');
+    setNotice('');
+    setShowGoalBuilder(true);
+  }
+
+  function openGoalEditor(goal) {
+    setEditingGoalId(goal.id);
+    setGoalTitle(goal.title);
+    setGoalType(goal.type);
+    setGoalTargetValue(String(goal.targetValue));
+    setGoalExerciseName(goal.exerciseName || '');
+    setGoalStartDate(goal.startDate || localDateKey());
+    setGoalTargetDate(goal.targetDate || '');
+    setNotice('');
+    setShowGoalBuilder(true);
+  }
+
+  function saveGoal(event) {
+    event.preventDefault();
+
+    if (!goalTitle.trim()) {
+      setNotice('Enter a title for this goal.');
+      return;
+    }
+
+    if (!goalTargetValue || Number(goalTargetValue) <= 0) {
+      setNotice('Enter a target greater than zero.');
+      return;
+    }
+
+    if (goalType === 'strength' && !goalExerciseName) {
+      setNotice('Select an exercise for your strength goal.');
+      return;
+    }
+
+    if (!goalTargetDate || goalTargetDate < goalStartDate) {
+      setNotice('Choose a target date on or after the start date.');
+      return;
+    }
+
+    const existingGoal = goals.find(goal => goal.id === editingGoalId);
+    const goal = {
+      id: existingGoal?.id || crypto.randomUUID(),
+      title: goalTitle.trim(),
+      type: goalType,
+      targetValue: Number(goalTargetValue),
+      exerciseName: goalType === 'strength' ? goalExerciseName : '',
+      startDate: goalStartDate,
+      targetDate: goalTargetDate,
+      status: existingGoal?.status === 'paused' ? 'paused' : 'active',
+      completionDate: null,
+      notifiedMilestones: existingGoal?.notifiedMilestones || [],
+      createdAt: existingGoal?.createdAt || new Date().toISOString(),
+    };
+    const updated = editingGoalId
+      ? goals.map(item => item.id === editingGoalId ? goal : item)
+      : [goal, ...goals];
+
+    if (persistGoals(updated)) {
+      setShowGoalBuilder(false);
+      setEditingGoalId(null);
+      setNotice('');
+    }
+  }
+
+  function deleteGoal(id) {
+    const goal = goals.find(item => item.id === id);
+    if (!goal || !window.confirm(`Delete the goal "${goal.title}"?`)) return;
+
+    persistGoals(goals.filter(item => item.id !== id));
+  }
+
+  function toggleGoalPause(goal) {
+    const isPaused = goal.status === 'paused';
+    const progress = calculateGoalProgress(goal, realWorkouts);
+    const percentage = goal.targetValue > 0
+      ? Math.min(100, (progress.current / Number(goal.targetValue)) * 100)
+      : 0;
+    const milestones = Array.isArray(goal.notifiedMilestones)
+      ? goal.notifiedMilestones
+      : [];
+    const updatedGoal = {
+      ...goal,
+      status: isPaused ? 'active' : 'paused',
+      notifiedMilestones: isPaused
+        ? milestones
+        : [...new Set([
+            ...milestones,
+            ...[25, 50, 75, 100].filter(milestone => percentage >= milestone),
+          ])],
+    };
+
+    persistGoals(
+      goals.map(item => item.id === goal.id ? updatedGoal : item)
+    );
+  }
+
+  function dismissGoalNotification(id) {
+    setActiveGoalNotifications(current =>
+      current.filter(notification => notification.id !== id)
+    );
+  }
+
+  function dismissGoalHistoryItem(id) {
+    const updated = goalNotifications.filter(notification => notification.id !== id);
+    setGoalNotifications(updated);
+    try {
+      localStorage.setItem(GOAL_NOTIFICATIONS_KEY, JSON.stringify(updated));
+    } catch {
+      setNotice('Could not update goal milestones. Check browser storage.');
+    }
+  }
+
   function exportBackup() {
     try {
       const backup = {
         app: 'ZENTRAQ FORGE',
-        version: 1,
+        version: 2,
         exportedAt: new Date().toISOString(),
         workouts: realWorkouts,
+        goals,
+        goalNotifications,
       };
 
       const blob = new Blob(
@@ -669,6 +995,10 @@ function App() {
       const text = await file.text();
       const parsed = JSON.parse(text);
       const imported = Array.isArray(parsed) ? parsed : parsed.workouts;
+      const importedGoals = Array.isArray(parsed) ? null : parsed.goals;
+      const importedGoalNotifications = Array.isArray(parsed)
+        ? null
+        : parsed.goalNotifications;
 
       if (!Array.isArray(imported)) {
         throw new Error('Invalid backup format.');
@@ -693,12 +1023,22 @@ function App() {
       }));
 
       const confirmed = window.confirm(
-        `Import ${cleaned.length} workouts? This will replace your current saved workouts.`
+        `Import ${cleaned.length} workouts${Array.isArray(importedGoals) ? ` and ${importedGoals.length} goals` : ''}? This will replace your current saved workouts${Array.isArray(importedGoals) ? ' and goals' : ''}.`
       );
 
       if (!confirmed) return;
 
       if (persistWorkouts(cleaned)) {
+        if (Array.isArray(importedGoals)) {
+          persistGoals(importedGoals);
+        }
+        if (Array.isArray(importedGoalNotifications)) {
+          setGoalNotifications(importedGoalNotifications);
+          localStorage.setItem(
+            GOAL_NOTIFICATIONS_KEY,
+            JSON.stringify(importedGoalNotifications)
+          );
+        }
         setNotice(`Successfully imported ${cleaned.length} workouts.`);
       }
     } catch (error) {
@@ -916,6 +1256,45 @@ function App() {
 
   return (
     <div className="app-shell">
+      {activeGoalNotifications.length > 0 && (
+        <aside className="goal-toast-stack" aria-live="polite">
+          <div className="pr-toast-heading">
+            <div>
+              <span className="eyebrow">GOAL MILESTONE</span>
+              <strong>Progress worth celebrating</strong>
+            </div>
+            <button
+              type="button"
+              className="pr-toast-dismiss-all"
+              onClick={() => setActiveGoalNotifications([])}
+              aria-label="Dismiss all goal notifications"
+            >
+              ×
+            </button>
+          </div>
+          <div className="pr-toast-list">
+            {activeGoalNotifications.map(notification => (
+              <div className="pr-toast goal-toast" key={notification.id}>
+                <div>
+                  <strong>{notification.title}</strong>
+                  <span>{notification.milestone}% milestone</span>
+                  <p>
+                    {notification.current.toLocaleString('en-US')} {notification.unit}
+                    {' '}of {notification.target.toLocaleString('en-US')} {notification.unit}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => dismissGoalNotification(notification.id)}
+                  aria-label={`Dismiss ${notification.title} notification`}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        </aside>
+      )}
       {activePRNotifications.length > 0 && (
         <aside className="pr-toast-stack" aria-live="polite">
           <div className="pr-toast-heading">
@@ -970,6 +1349,7 @@ function App() {
           <a className="nav-item" href="#progress">Progress</a>
           <a className="nav-item" href="#personal-records">Personal records</a>
           <a className="nav-item" href="#pr-notifications">PR notifications</a>
+          <a className="nav-item" href="#goals">Goals & milestones</a>
           <a className="nav-item" href="#plans">Workout plans</a>
         </nav>
 
@@ -1330,6 +1710,155 @@ function App() {
             <div className="progress-empty">
               Log a workout with exercises to build your exercise history.
             </div>
+          )}
+        </section>
+
+        <section className="panel goals-panel" id="goals">
+          <div className="history-heading">
+            <div>
+              <div className="eyebrow">TRAIN WITH INTENTION</div>
+              <h2>Goals & milestones</h2>
+              <p className="history-subtitle">
+                Set meaningful targets and let your training data track the way.
+              </p>
+            </div>
+            <button className="primary-button" onClick={openGoalBuilder}>
+              + Create goal
+            </button>
+          </div>
+
+          {goalsWithProgress.length ? (
+            <div className="goals-grid">
+              {goalsWithProgress.map(goal => {
+                const targetDate = new Date(`${goal.targetDate}T00:00:00`);
+                const remainingDays = Math.max(
+                  0,
+                  Math.ceil((targetDate.getTime() - new Date().setHours(0, 0, 0, 0)) / 86400000)
+                );
+                const currentValue = goal.current.toLocaleString('en-US');
+                const targetValue = Number(goal.targetValue).toLocaleString('en-US');
+
+                return (
+                  <article className={`goal-card ${goal.displayStatus}`} key={goal.id}>
+                    <div className="goal-card-heading">
+                      <div>
+                        <span className="goal-type-label">{formatGoalType(goal.type)}</span>
+                        <h3>{goal.title}</h3>
+                        {goal.exerciseName && <p>{goal.exerciseName}</p>}
+                      </div>
+                      <span className={`goal-status ${goal.displayStatus}`}>
+                        {goal.displayStatus}
+                      </span>
+                    </div>
+
+                    <div className="goal-progress-summary">
+                      <strong>{currentValue}</strong>
+                      <span>/ {targetValue} {goal.unit}</span>
+                      <b>{Math.round(goal.percentage)}%</b>
+                    </div>
+                    <div
+                      className="goal-progress-track"
+                      role="progressbar"
+                      aria-valuenow={Math.round(goal.percentage)}
+                      aria-valuemin="0"
+                      aria-valuemax="100"
+                      aria-label={`${goal.title} progress`}
+                    >
+                      <div
+                        className="goal-progress-bar"
+                        style={{ width: `${goal.percentage}%` }}
+                      />
+                    </div>
+
+                    <div className="goal-card-meta">
+                      <span>{goal.startDate} → {goal.targetDate}</span>
+                      <span>
+                        {goal.displayStatus === 'completed'
+                          ? `Completed ${goal.completionDate || goal.targetDate}`
+                          : goal.displayStatus === 'expired'
+                            ? 'Target date passed'
+                            : goal.displayStatus === 'paused'
+                              ? 'Progress paused'
+                              : `${remainingDays} ${remainingDays === 1 ? 'day' : 'days'} remaining`}
+                      </span>
+                    </div>
+
+                    <div className="goal-card-actions">
+                      <button
+                        type="button"
+                        className="record-edit"
+                        onClick={() => openGoalEditor(goal)}
+                      >
+                        Edit
+                      </button>
+                      {(goal.displayStatus === 'active' || goal.displayStatus === 'paused') && (
+                        <button
+                          type="button"
+                          className="goal-pause-button"
+                          onClick={() => toggleGoalPause(goal)}
+                        >
+                          {goal.displayStatus === 'paused' ? 'Resume' : 'Pause'}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="record-delete"
+                        onClick={() => deleteGoal(goal.id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="goal-empty-state">
+              <h3>Make your next milestone measurable.</h3>
+              <p>Create a strength, frequency, volume, or consistency goal to get started.</p>
+              <button className="secondary-button" onClick={openGoalBuilder}>
+                Create your first goal
+              </button>
+            </div>
+          )}
+        </section>
+
+        <section className="panel goal-history-panel" id="goal-history">
+          <div className="history-heading">
+            <div>
+              <div className="eyebrow">MILESTONE LOG</div>
+              <h2>Goal achievements</h2>
+              <p className="history-subtitle">Milestones are recorded once and remain available after refresh.</p>
+            </div>
+            <span className="panel-tag">{goalNotifications.length} MILESTONES</span>
+          </div>
+
+          {goalNotifications.length ? (
+            <div className="goal-history-list">
+              {goalNotifications.map(notification => (
+                <article className="goal-history-row" key={notification.id}>
+                  <div className="pr-history-icon">✦</div>
+                  <div className="pr-history-main">
+                    <strong>{notification.title}</strong>
+                    <span>{notification.milestone}% milestone</span>
+                  </div>
+                  <div className="pr-history-values">
+                    <strong>{notification.current.toLocaleString('en-US')} {notification.unit}</strong>
+                    <span>Target: {notification.target.toLocaleString('en-US')} {notification.unit}</span>
+                  </div>
+                  <div className="pr-history-date">{notification.date}</div>
+                  <button
+                    type="button"
+                    className="pr-history-dismiss"
+                    onClick={() => dismissGoalHistoryItem(notification.id)}
+                  >
+                    Dismiss
+                  </button>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="progress-empty">Goal milestones will appear here as you progress.</div>
           )}
         </section>
 
@@ -1699,6 +2228,154 @@ function App() {
           <span>PERSONAL WORKSPACE</span>
         </footer>
       </main>
+
+      {/* GOAL BUILDER MODAL */}
+      {showGoalBuilder && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={event => {
+            if (event.target === event.currentTarget) {
+              setShowGoalBuilder(false);
+              setEditingGoalId(null);
+            }
+          }}
+        >
+          <section
+            className="workout-modal goal-builder-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="goal-builder-title"
+          >
+            <div className="modal-heading">
+              <div>
+                <div className="eyebrow">{editingGoalId ? 'REFINE YOUR TARGET' : 'NEW MILESTONE'}</div>
+                <h2 id="goal-builder-title">
+                  {editingGoalId ? 'Edit goal' : 'Create a goal'}
+                </h2>
+              </div>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => {
+                  setShowGoalBuilder(false);
+                  setEditingGoalId(null);
+                }}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={saveGoal}>
+              <label className="form-label">
+                Goal title
+                <input
+                  value={goalTitle}
+                  onChange={event => setGoalTitle(event.target.value)}
+                  placeholder="e.g. Bench press milestone"
+                  required
+                />
+              </label>
+
+              <label className="form-label">
+                Goal type
+                <select
+                  value={goalType}
+                  onChange={event => setGoalType(event.target.value)}
+                >
+                  <option value="strength">Strength goal</option>
+                  <option value="frequency">Workout frequency</option>
+                  <option value="volume">Training volume</option>
+                  <option value="consistency">Consistency</option>
+                </select>
+              </label>
+
+              {goalType === 'strength' && (
+                <label className="form-label">
+                  Exercise
+                  <select
+                    value={goalExerciseName}
+                    onChange={event => setGoalExerciseName(event.target.value)}
+                    required
+                  >
+                    <option value="">Select an exercise</option>
+                    {exerciseNames.map(name => (
+                      <option value={name} key={name}>{name}</option>
+                    ))}
+                  </select>
+                  {!exerciseNames.length && (
+                    <small className="form-help">Save an exercise first to create a strength goal.</small>
+                  )}
+                </label>
+              )}
+
+              <label className="form-label">
+                Target value
+                <input
+                  type="number"
+                  min="0.01"
+                  step="any"
+                  value={goalTargetValue}
+                  onChange={event => setGoalTargetValue(event.target.value)}
+                  placeholder={
+                    goalType === 'strength' || goalType === 'volume'
+                      ? 'e.g. 100'
+                      : 'e.g. 4'
+                  }
+                  required
+                />
+                <small className="form-help">
+                  {goalType === 'strength' || goalType === 'volume'
+                    ? 'Measured in kilograms.'
+                    : goalType === 'frequency'
+                      ? 'Number of workouts this week.'
+                      : 'Number of consecutive days.'}
+                </small>
+              </label>
+
+              <div className="goal-date-fields">
+                <label className="form-label">
+                  Start date
+                  <input
+                    type="date"
+                    value={goalStartDate}
+                    onChange={event => setGoalStartDate(event.target.value)}
+                    required
+                  />
+                </label>
+                <label className="form-label">
+                  Target date
+                  <input
+                    type="date"
+                    value={goalTargetDate}
+                    onChange={event => setGoalTargetDate(event.target.value)}
+                    min={goalStartDate}
+                    required
+                  />
+                </label>
+              </div>
+
+              {notice && <p className="form-notice">{notice}</p>}
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => {
+                    setShowGoalBuilder(false);
+                    setEditingGoalId(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="primary-button">
+                  {editingGoalId ? 'Save changes' : 'Create goal'}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
 
       {/* CREATE WORKOUT PLAN MODAL */}
       {showPlanBuilder && (
