@@ -149,6 +149,7 @@ function App() {
   const [sortOrder, setSortOrder] = useState('newest');
   const [historyFilter, setHistoryFilter] = useState('all');
   const [selectedExercise, setSelectedExercise] = useState('');
+  const [exerciseChartMetric, setExerciseChartMetric] = useState('weight');
   const importInputRef = useRef(null);
 
   // Personalized workout plan state
@@ -272,6 +273,51 @@ function App() {
         }))
     )
     .sort((a, b) => b.dateISO.localeCompare(a.dateISO));
+
+  // Exercise progress chart data
+  const exerciseChartData = [...exerciseHistory]
+    .reverse()
+    .map((entry, index) => ({
+      ...entry,
+      chartValue:
+        exerciseChartMetric === 'volume'
+          ? entry.volume
+          : exerciseChartMetric === 'reps'
+            ? entry.reps
+            : entry.weight,
+      chartIndex: index,
+    }));
+
+  const exerciseChartMax = Math.max(
+    1,
+    ...exerciseChartData.map(entry => entry.chartValue)
+  );
+
+  const exerciseChartPoints = exerciseChartData.map((entry, index) => {
+    const chartWidth = 680;
+    const chartHeight = 190;
+
+    const x =
+      exerciseChartData.length === 1
+        ? chartWidth / 2
+        : 20 + (index / (exerciseChartData.length - 1)) * (chartWidth - 40);
+
+    const y =
+      chartHeight - 12 - (entry.chartValue / exerciseChartMax) * (chartHeight - 32);
+
+    return { ...entry, x, y };
+  });
+
+  const exerciseChartLine = exerciseChartPoints
+    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
+    .join(' ');
+
+  const exerciseChartMetricLabel =
+    exerciseChartMetric === 'volume'
+      ? 'Volume (kg)'
+      : exerciseChartMetric === 'reps'
+        ? 'Reps'
+        : 'Weight (kg)';
 
   // Personal records are calculated from saved workouts.
   // Editing or deleting a workout automatically recalculates the records.
@@ -896,6 +942,108 @@ function App() {
                   </strong>
                   <span>TOTAL VOLUME</span>
                 </div>
+              </div>
+
+              {/* EXERCISE PROGRESS CHART */}
+              <div className="exercise-progress-card">
+                <div className="exercise-progress-heading">
+                  <div>
+                    <span className="eyebrow">PERFORMANCE TREND</span>
+                    <h3>{activeExercise} progress</h3>
+                    <p className="history-subtitle">
+                      Track how this exercise changes across your saved sessions.
+                    </p>
+                  </div>
+
+                  <div className="exercise-chart-tabs" role="group" aria-label="Chart metric">
+                    <button
+                      type="button"
+                      className={exerciseChartMetric === 'weight' ? 'active' : ''}
+                      onClick={() => setExerciseChartMetric('weight')}
+                    >
+                      Weight
+                    </button>
+                    <button
+                      type="button"
+                      className={exerciseChartMetric === 'volume' ? 'active' : ''}
+                      onClick={() => setExerciseChartMetric('volume')}
+                    >
+                      Volume
+                    </button>
+                    <button
+                      type="button"
+                      className={exerciseChartMetric === 'reps' ? 'active' : ''}
+                      onClick={() => setExerciseChartMetric('reps')}
+                    >
+                      Reps
+                    </button>
+                  </div>
+                </div>
+
+                {exerciseChartData.length ? (
+                  <>
+                    <div className="exercise-chart-scale">
+                      <span>{exerciseChartMetricLabel}</span>
+                      <strong>
+                        {exerciseChartData[exerciseChartData.length - 1].chartValue.toLocaleString('en-US')}
+                        {exerciseChartMetric === 'reps' ? '' : ' kg'}
+                      </strong>
+                    </div>
+
+                    <div className="exercise-progress-chart">
+                      <svg
+                        viewBox="0 0 720 220"
+                        role="img"
+                        aria-label={`${exerciseChartMetricLabel} progress chart for ${activeExercise}`}
+                        preserveAspectRatio="none"
+                      >
+                        {[0, 1, 2, 3].map(line => {
+                          const y = 20 + line * 55;
+                          return (
+                            <line
+                              key={line}
+                              x1="20"
+                              x2="700"
+                              y1={y}
+                              y2={y}
+                              className="exercise-chart-gridline"
+                            />
+                          );
+                        })}
+
+                        {exerciseChartPoints.length > 1 && (
+                          <path d={exerciseChartLine} className="exercise-chart-line" />
+                        )}
+
+                        {exerciseChartPoints.map(point => (
+                          <circle
+                            key={point.id}
+                            cx={point.x}
+                            cy={point.y + 8}
+                            r="5"
+                            className="exercise-chart-point"
+                          >
+                            <title>
+                              {point.date}: {point.chartValue.toLocaleString('en-US')}
+                              {exerciseChartMetric === 'reps' ? ' reps' : ' kg'}
+                            </title>
+                          </circle>
+                        ))}
+                      </svg>
+                    </div>
+
+                    <div className="exercise-chart-dates">
+                      <span>{exerciseChartData[0].date}</span>
+                      <span>{exerciseChartData[exerciseChartData.length - 1].date}</span>
+                    </div>
+
+                    <p className="exercise-chart-footnote">
+                      Each point represents one saved workout session. The chart updates when you edit or delete a workout.
+                    </p>
+                  </>
+                ) : (
+                  <div className="progress-empty">No data available for this exercise yet.</div>
+                )}
               </div>
 
               <div className="exercise-history-list">
@@ -1537,4 +1685,3 @@ function App() {
 }
 
 export default App;
- 
