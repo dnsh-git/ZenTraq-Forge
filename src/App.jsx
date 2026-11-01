@@ -911,7 +911,13 @@ function App() {
   const [generatorNotice, setGeneratorNotice] = useState('');
 
   useEffect(() => {
-    const syncScreen = () => setActiveScreen(getScreenFromHash());
+    const syncScreen = () => {
+      const nextScreen = getScreenFromHash();
+      setActiveScreen(nextScreen);
+      if (nextScreen !== 'workouts') {
+        setShowLogger(false);
+      }
+    };
     window.addEventListener('hashchange', syncScreen);
     syncScreen();
     return () => window.removeEventListener('hashchange', syncScreen);
@@ -4966,10 +4972,7 @@ function App() {
         </section>}
 
         <footer className="app-footer">
-          <span>
-            ZENTRAQ FORGE <span className="footer-separator">/</span> TRAIN WITH INTENTION
-          </span>
-          <span>PERSONAL WORKSPACE</span>
+          <span>ZENTRAQ FORGE</span>
         </footer>
       </main>
 
@@ -5517,7 +5520,7 @@ function App() {
       )}
 
       {/* WORKOUT LOGGER MODAL */}
-      {showLogger && (
+      {showLogger && activeScreen === 'workouts' && (
         <div
           className="modal-backdrop"
           onMouseDown={event => {
