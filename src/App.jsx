@@ -1,4 +1,4 @@
-
+```jsx
 import { useRef, useState } from 'react';
 import './App.css';
 
@@ -52,7 +52,6 @@ function getWeekDays() {
   return DAY_NAMES.map((day, index) => {
     const date = new Date(monday);
     date.setDate(monday.getDate() + index);
-
     return {
       day,
       dateKey: localDateKey(date),
@@ -275,49 +274,82 @@ function App() {
     .sort((a, b) => b.dateISO.localeCompare(a.dateISO));
 
   // Exercise progress chart data
-  const exerciseChartData = [...exerciseHistory]
-    .reverse()
-    .map((entry, index) => ({
-      ...entry,
-      chartValue:
-        exerciseChartMetric === 'volume'
-          ? entry.volume
-          : exerciseChartMetric === 'reps'
-            ? entry.reps
-            : entry.weight,
-      chartIndex: index,
-    }));
+  const chartMetricConfig = {
+    weight: { label: 'Weight', unit: 'kg', value: entry => entry.weight },
+    volume: { label: 'Volume', unit: 'kg', value: entry => entry.volume },
+    reps: { label: 'Reps', unit: 'reps', value: entry => entry.reps },
+  };
 
-  const exerciseChartMax = Math.max(
-    1,
-    ...exerciseChartData.map(entry => entry.chartValue)
-  );
+  const chartConfig = chartMetricConfig[exerciseChartMetric];
+  const chartEntries = [...exerciseHistory].reverse();
+  const chartValues = chartEntries.map(entry => chartConfig.value(entry));
+  const chartMax = Math.max(...chartValues, 1);
+  const chartMin = Math.min(...chartValues, 0);
+  const chartRange = chartMax - chartMin || 1;
+  const chartWidth = 640;
+  const chartHeight = 190;
+  const chartPadding = 24;
 
-  const exerciseChartPoints = exerciseChartData.map((entry, index) => {
-    const chartWidth = 680;
-    const chartHeight = 190;
+  const chartPoints = chartEntries.map((entry, index) => {
+    const x = chartEntries.length === 1
+      ? chartWidth / 2
+      : chartPadding + (index / (chartEntries.length - 1)) * (chartWidth - chartPadding * 2);
 
-    const x =
-      exerciseChartData.length === 1
-        ? chartWidth / 2
-        : 20 + (index / (exerciseChartData.length - 1)) * (chartWidth - 40);
+    const y = chartHeight - chartPadding -
+      ((chartConfig.value(entry) - chartMin) / chartRange) *
+      (chartHeight - chartPadding * 2);
 
-    const y =
-      chartHeight - 12 - (entry.chartValue / exerciseChartMax) * (chartHeight - 32);
-
-    return { ...entry, x, y };
+    return { x, y, entry, value: chartConfig.value(entry) };
   });
 
-  const exerciseChartLine = exerciseChartPoints
-    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
+  const chartPolyline = chartPoints
+    .map(point => `${point.x},${point.y}`)
     .join(' ');
 
-  const exerciseChartMetricLabel =
-    exerciseChartMetric === 'volume'
-      ? 'Volume (kg)'
-      : exerciseChartMetric === 'reps'
-        ? 'Reps'
-        : 'Weight (kg)';
+  // Current vs previous session comparison
+  const currentExerciseSession = exerciseHistory[0] || null;
+  const previousExerciseSession = exerciseHistory[1] || null;
+
+  const exerciseComparison =
+    currentExerciseSession && previousExerciseSession
+      ? [
+          {
+            label: 'Weight',
+            unit: 'kg',
+            current: currentExerciseSession.weight,
+            previous: previousExerciseSession.weight,
+          },
+          {
+            label: 'Volume',
+            unit: 'kg',
+            current: currentExerciseSession.volume,
+            previous: previousExerciseSession.volume,
+          },
+          {
+            label: 'Reps',
+            unit: 'reps',
+            current: currentExerciseSession.reps,
+            previous: previousExerciseSession.reps,
+          },
+        ].map(metric => {
+          const difference = metric.current - metric.previous;
+          const percentage = metric.previous === 0
+            ? null
+            : (difference / metric.previous) * 100;
+
+          return {
+            ...metric,
+            difference,
+            percentage,
+            status:
+              difference > 0
+                ? 'improved'
+                : difference < 0
+                  ? 'declined'
+                  : 'unchanged',
+          };
+        })
+      : [];
 
   // Personal records are calculated from saved workouts.
   // Editing or deleting a workout automatically recalculates the records.
@@ -945,65 +977,44 @@ function App() {
               </div>
 
               {/* EXERCISE PROGRESS CHART */}
-              <div className="exercise-progress-card">
-                <div className="exercise-progress-heading">
+              <div className="exercise-progress-chart">
+                <div className="exercise-chart-heading">
                   <div>
-                    <span className="eyebrow">PERFORMANCE TREND</span>
-                    <h3>{activeExercise} progress</h3>
-                    <p className="history-subtitle">
-                      Track how this exercise changes across your saved sessions.
-                    </p>
+                    <h3>Exercise progress</h3>
+                    <p>Track how your performance changes across sessions.</p>
                   </div>
-
-                  <div className="exercise-chart-tabs" role="group" aria-label="Chart metric">
-                    <button
-                      type="button"
-                      className={exerciseChartMetric === 'weight' ? 'active' : ''}
-                      onClick={() => setExerciseChartMetric('weight')}
-                    >
-                      Weight
-                    </button>
-                    <button
-                      type="button"
-                      className={exerciseChartMetric === 'volume' ? 'active' : ''}
-                      onClick={() => setExerciseChartMetric('volume')}
-                    >
-                      Volume
-                    </button>
-                    <button
-                      type="button"
-                      className={exerciseChartMetric === 'reps' ? 'active' : ''}
-                      onClick={() => setExerciseChartMetric('reps')}
-                    >
-                      Reps
-                    </button>
-                  </div>
+                  <select
+                    value={exerciseChartMetric}
+                    onChange={event => setExerciseChartMetric(event.target.value)}
+                    aria-label="Select exercise chart metric"
+                  >
+                    <option value="weight">Weight</option>
+                    <option value="volume">Volume</option>
+                    <option value="reps">Reps</option>
+                  </select>
                 </div>
 
-                {exerciseChartData.length ? (
+                {chartEntries.length ? (
                   <>
-                    <div className="exercise-chart-scale">
-                      <span>{exerciseChartMetricLabel}</span>
-                      <strong>
-                        {exerciseChartData[exerciseChartData.length - 1].chartValue.toLocaleString('en-US')}
-                        {exerciseChartMetric === 'reps' ? '' : ' kg'}
-                      </strong>
+                    <div className="exercise-chart-value">
+                      <strong>{chartConfig.value(exerciseHistory[0]).toLocaleString('en-US')}</strong>
+                      <span>{chartConfig.unit} · latest session</span>
                     </div>
 
-                    <div className="exercise-progress-chart">
+                    <div className="exercise-chart-svg-wrap">
                       <svg
-                        viewBox="0 0 720 220"
+                        className="exercise-chart-svg"
+                        viewBox={`0 0 ${chartWidth} ${chartHeight}`}
                         role="img"
-                        aria-label={`${exerciseChartMetricLabel} progress chart for ${activeExercise}`}
-                        preserveAspectRatio="none"
+                        aria-label={`${chartConfig.label} progress chart`}
                       >
                         {[0, 1, 2, 3].map(line => {
-                          const y = 20 + line * 55;
+                          const y = chartPadding + (line / 3) * (chartHeight - chartPadding * 2);
                           return (
                             <line
                               key={line}
-                              x1="20"
-                              x2="700"
+                              x1={chartPadding}
+                              x2={chartWidth - chartPadding}
                               y1={y}
                               y2={y}
                               className="exercise-chart-gridline"
@@ -1011,38 +1022,91 @@ function App() {
                           );
                         })}
 
-                        {exerciseChartPoints.length > 1 && (
-                          <path d={exerciseChartLine} className="exercise-chart-line" />
+                        {chartPoints.length > 1 && (
+                          <polyline
+                            points={chartPolyline}
+                            className="exercise-chart-line"
+                          />
                         )}
 
-                        {exerciseChartPoints.map(point => (
+                        {chartPoints.map((point, index) => (
                           <circle
-                            key={point.id}
+                            key={`${point.entry.id}-${index}`}
                             cx={point.x}
-                            cy={point.y + 8}
+                            cy={point.y}
                             r="5"
                             className="exercise-chart-point"
                           >
                             <title>
-                              {point.date}: {point.chartValue.toLocaleString('en-US')}
-                              {exerciseChartMetric === 'reps' ? ' reps' : ' kg'}
+                              {`${point.entry.date}: ${point.value} ${chartConfig.unit}`}
                             </title>
                           </circle>
                         ))}
                       </svg>
                     </div>
 
-                    <div className="exercise-chart-dates">
-                      <span>{exerciseChartData[0].date}</span>
-                      <span>{exerciseChartData[exerciseChartData.length - 1].date}</span>
+                    <div className="exercise-chart-labels">
+                      <span>{chartEntries[0].date}</span>
+                      <span>{chartEntries[chartEntries.length - 1].date}</span>
                     </div>
-
-                    <p className="exercise-chart-footnote">
-                      Each point represents one saved workout session. The chart updates when you edit or delete a workout.
-                    </p>
                   </>
                 ) : (
-                  <div className="progress-empty">No data available for this exercise yet.</div>
+                  <div className="progress-empty">
+                    Log sessions for this exercise to see its progress chart.
+                  </div>
+                )}
+              </div>
+
+              {/* CURRENT VS PREVIOUS SESSION COMPARISON */}
+              <div className="session-comparison-card">
+                <div className="session-comparison-heading">
+                  <div>
+                    <h3>Session comparison</h3>
+                    <p>Compare your two most recent {activeExercise} sessions.</p>
+                  </div>
+                  <span className="panel-tag">AUTO-UPDATED</span>
+                </div>
+
+                {currentExerciseSession && previousExerciseSession ? (
+                  <>
+                    <div className="session-comparison-dates">
+                      <div>
+                        <span>LATEST SESSION</span>
+                        <strong>{currentExerciseSession.date}</strong>
+                        <small>{currentExerciseSession.workoutName}</small>
+                      </div>
+                      <div>
+                        <span>PREVIOUS SESSION</span>
+                        <strong>{previousExerciseSession.date}</strong>
+                        <small>{previousExerciseSession.workoutName}</small>
+                      </div>
+                    </div>
+
+                    <div className="session-comparison-grid">
+                      {exerciseComparison.map(metric => (
+                        <div className="session-comparison-metric" key={metric.label}>
+                          <span>{metric.label}</span>
+                          <strong>
+                            {metric.current.toLocaleString('en-US')} {metric.unit}
+                          </strong>
+                          <small>
+                            Previous: {metric.previous.toLocaleString('en-US')} {metric.unit}
+                          </small>
+                          <div className={`comparison-change ${metric.status}`}>
+                            {metric.difference > 0 ? '+' : ''}
+                            {metric.difference.toLocaleString('en-US')} {metric.unit}
+                            {metric.percentage === null
+                              ? ' · New baseline'
+                              : ` · ${metric.percentage > 0 ? '+' : ''}${metric.percentage.toFixed(1)}%`}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="progress-empty">
+                    Complete this exercise in at least two saved workouts to compare sessions.
+                  </div>
                 )}
               </div>
 
