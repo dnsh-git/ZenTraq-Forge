@@ -128,6 +128,34 @@ h2 { margin: 0; font: 600 19px 'Space Grotesk', sans-serif; }
 .logger-modal input:focus { border-color: #c4f36b; }
 .save-workout { margin-top: 16px; min-height: 44px; width: 100%; }
 .form-notice { margin: 5px 0 0; color: #ff9b91; font-size: 11px; line-height: 1.5; }
+.active-workout-panel { margin: 18px 42px 0; padding: 18px 20px; display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 18px; border: 1px solid #536b3e; border-radius: 10px; background: linear-gradient(135deg, #1a2417, #111611); }
+.active-workout-panel.paused { border-color: #786b3d; background: linear-gradient(135deg, #242116, #151511); }
+.active-workout-main h2 { margin: 0 0 8px; }
+.workout-timer-digits { display: block; color: #c4f36b; font: 600 clamp(32px, 4vw, 46px)/1 'Space Grotesk', sans-serif; letter-spacing: 1px; }
+.timer-caption { display: block; margin-top: 6px; color: #8d9789; font-size: 10px; }
+.active-workout-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.active-rest-controls { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-top: 14px; border-top: 1px solid #2e3b2b; }
+.active-rest-controls > div:first-child { min-width: 100px; }
+.active-rest-controls strong { display: block; margin-top: 3px; color: #e8eae7; font: 600 18px 'Space Grotesk', sans-serif; }
+.timer-control-label { display: block; color: #9aa494; font-size: 9px; font-weight: 700; letter-spacing: 1.3px; }
+.active-rest-controls select, .active-rest-controls input, .timer-preferences select { padding: 9px 10px; border: 1px solid #343d32; border-radius: 5px; background: #0c100c; color: #dfe6dc; font-size: 11px; }
+.active-rest-controls input { width: 86px; }
+.rest-progress-track { flex: 1 1 130px; min-width: 100px; height: 6px; overflow: hidden; border-radius: 999px; background: #293329; }
+.rest-progress-track span { display: block; height: 100%; border-radius: inherit; background: #c4f36b; transition: width .2s linear; }
+.timer-launcher { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin: 5px 0 12px; padding: 13px; border: 1px dashed #3b4736; border-radius: 7px; background: #171d16; }
+.timer-launcher > div { flex: 1 1 150px; }
+.timer-launcher strong { display: block; margin-top: 4px; color: #c4f36b; font: 600 16px 'Space Grotesk', sans-serif; }
+.timer-launcher.is-active { border-style: solid; border-color: #536b3e; }
+.set-actions { display: flex; flex-wrap: wrap; gap: 7px; margin: -2px 0 10px; }
+.rest-inline-button { padding: 7px 9px; border: 1px solid #3b4736; border-radius: 5px; color: #b7df7d; background: #171d16; font-size: 10px; }
+.rest-inline-button:hover { border-color: #c4f36b; color: #c4f36b; }
+.rest-warning { color: #f2d579; font-size: 10px; font-weight: 600; }
+.timer-preferences { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; margin-top: 17px; padding-top: 15px; border-top: 1px solid #282f27; color: #9ba59a; font-size: 10px; }
+.timer-preferences-heading { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 10px; }
+.timer-preferences-heading > span:last-child { color: #687267; }
+.timer-preferences label:not(.timer-checkbox) { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.timer-checkbox { display: flex; align-items: center; gap: 7px; }
+.timer-checkbox input { width: auto; accent-color: #c4f36b; }
 .exercise-form-heading { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
 .exercise-form-heading h3 { margin: 0; font: 600 15px 'Space Grotesk', sans-serif; }
 .exercise-form-heading > span { color: #9aa494; font-size: 10px; }
@@ -156,6 +184,13 @@ h2 { margin: 0; font: 600 19px 'Space Grotesk', sans-serif; }
 }
 
 @media (max-width: 760px) {
+  .active-workout-panel { margin: 14px 14px 0; grid-template-columns: 1fr; }
+  .active-workout-actions { justify-content: flex-start; flex-wrap: wrap; }
+  .active-rest-controls { align-items: stretch; }
+  .active-rest-controls > div:first-child { flex-basis: 100%; }
+  .rest-progress-track { flex-basis: 100%; }
+  .timer-preferences { grid-template-columns: 1fr; }
+  .timer-preferences-heading { grid-column: auto; }
   .sidebar { position: static; width: 100%; height: auto; padding: 14px 16px; border-right: 0; border-bottom: 1px solid #242824; }
   .brand { padding: 0; }
   .nav-label, .sidebar-bottom { display: none; }

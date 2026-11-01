@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './App.css';
 
 const STORAGE_KEY = 'zentraq-workouts';
@@ -8,6 +8,15 @@ const GOALS_KEY = 'zentraq-goals';
 const GOAL_NOTIFICATIONS_KEY = 'zentraq-goal-notifications';
 const MUSCLE_OVERRIDES_KEY = 'zentraq-muscle-overrides';
 const BODY_METRICS_KEY = 'zentraq-body-metrics';
+const TIMER_SESSION_KEY = 'zentraq-active-timer-session';
+const TIMER_PREFERENCES_KEY = 'zentraq-timer-preferences';
+
+const DEFAULT_TIMER_PREFERENCES = {
+  defaultRestSeconds: 60,
+  soundEnabled: true,
+  autoRestPrompt: false,
+  warningSeconds: 10,
+};
 
 const BODY_PARTS = [
   'Chest',
@@ -208,6 +217,86 @@ function loadStoredObject(key) {
   } catch {
     return {};
   }
+}
+
+function loadTimerSession() {
+  const session = loadStoredObject(TIMER_SESSION_KEY);
+  if (
+    !session ||
+    !['running', 'paused'].includes(session.status) ||
+    !Number.isFinite(session.startedAt) ||
+    !Number.isFinite(session.accumulatedMs)
+  ) {
+    return null;
+  }
+
+  return {
+    ...session,
+    status: session.status,
+    pausedAt: Number.isFinite(session.pausedAt) ? session.pausedAt : null,
+    workoutName: typeof session.workoutName === 'string' ? session.workoutName : '',
+    exercises: Array.isArray(session.exercises) ? session.exercises : [],
+  };
+}
+
+function loadTimerPreferences() {
+  const stored = loadStoredObject(TIMER_PREFERENCES_KEY);
+  return {
+    ...DEFAULT_TIMER_PREFERENCES,
+    ...stored,
+    defaultRestSeconds: Number(stored.defaultRestSeconds) || DEFAULT_TIMER_PREFERENCES.defaultRestSeconds,
+    warningSeconds: Number(stored.warningSeconds) || DEFAULT_TIMER_PREFERENCES.warningSeconds,
+    soundEnabled: stored.soundEnabled !== false,
+    autoRestPrompt: stored.autoRestPrompt === true,
+  };
+}
+
+function getElapsedTimerMs(session, now = Date.now()) {
+  if (!session) return 0;
+  if (session.status === 'paused') {
+    return session.accumulatedMs + Math.max(0, (session.pausedAt || now) - session.startedAt);
+  }
+  return session.accumulatedMs + Math.max(0, now - session.startedAt);
+}
+
+function formatWorkoutTime(milliseconds) {
+  const totalMinutes = Math.floor(Math.max(0, milliseconds) / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function formatRestTime(milliseconds) {
+  const totalSeconds = Math.ceil(Math.max(0, milliseconds) / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function getRestRemainingMs(timer, now = Date.now()) {
+  if (!timer) return 0;
+  if (timer.status === 'running') return Math.max(0, timer.endsAt - now);
+  return Math.max(0, timer.remainingMs);
+}
+
+function playRestCompletionSound(soundEnabled) {
+  if (!soundEnabled) return;
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) return;
+
+  const context = new AudioContext();
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.type = 'sine';
+  oscillator.frequency.value = 660;
+  gain.gain.setValueAtTime(0.0001, context.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.15, context.currentTime + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.35);
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start();
+  oscillator.stop(context.currentTime + 0.35);
+  oscillator.addEventListener('ended', () => context.close());
 }
 
 function getWorkoutVolume(workout) {
@@ -421,13 +510,28 @@ function calculateStreak(workouts) {
 }
 
 function App() {
+  const initialTimerSession = loadTimerSession();
   const [workouts, setWorkouts] = useState(loadWorkouts);
-  const [showLogger, setShowLogger] = useState(false);
+  const [showLogger, setShowLogger] = useState(Boolean(initialTimerSession));
   const [editingWorkoutId, setEditingWorkoutId] = useState(null);
-  const [workoutName, setWorkoutName] = useState('');
+  const [workoutName, setWorkoutName] = useState(
+    initialTimerSession?.workoutName || ''
+  );
   const [duration, setDuration] = useState('45');
-  const [exercises, setExercises] = useState([emptyExercise()]);
+  const [exercises, setExercises] = useState(
+    initialTimerSession?.exercises?.length
+      ? initialTimerSession.exercises
+      : [emptyExercise()]
+  );
   const [notice, setNotice] = useState('');
+  const [timerSession, setTimerSession] = useState(initialTimerSession);
+  const [timerNow, setTimerNow] = useState(Date.now);
+  const [timerPreferences, setTimerPreferences] = useState(loadTimerPreferences);
+  const [restTimer, setRestTimer] = useState(null);
+  const [restNow, setRestNow] = useState(Date.now);
+  const [restPreset, setRestPreset] = useState('60');
+  const [customRestSeconds, setCustomRestSeconds] = useState('60');
+  const restCompletionRef = useRef(false);
   const [prNotifications, setPRNotifications] = useState(loadPRNotifications);
   const [activePRNotifications, setActivePRNotifications] = useState([]);
   const [goals, setGoals] = useState(() => loadStoredArray(GOALS_KEY));
@@ -484,6 +588,66 @@ function App() {
     }))
   );
 
+  useEffect(() => {
+    if (!timerSession) return undefined;
+
+    try {
+      localStorage.setItem(
+        TIMER_SESSION_KEY,
+        JSON.stringify({
+          ...timerSession,
+          workoutName,
+          exercises,
+        })
+      );
+    } catch {
+      console.error('Could not persist the active workout timer.');
+    }
+
+    return undefined;
+  }, [timerSession, workoutName, exercises]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(TIMER_PREFERENCES_KEY, JSON.stringify(timerPreferences));
+    } catch {
+      console.error('Could not save timer preferences.');
+    }
+  }, [timerPreferences]);
+
+  useEffect(() => {
+    if (!timerSession || timerSession.status !== 'running') return undefined;
+    const interval = window.setInterval(() => setTimerNow(Date.now()), 250);
+    return () => window.clearInterval(interval);
+  }, [timerSession]);
+
+  useEffect(() => {
+    if (!restTimer || restTimer.status !== 'running') return undefined;
+    const interval = window.setInterval(() => setRestNow(Date.now()), 250);
+    return () => window.clearInterval(interval);
+  }, [restTimer]);
+
+  useEffect(() => {
+    if (
+      !restTimer ||
+      restTimer.status !== 'running' ||
+      getRestRemainingMs(restTimer, restNow) > 0 ||
+      restCompletionRef.current
+    ) {
+      return;
+    }
+
+    restCompletionRef.current = true;
+    setRestTimer(current => ({
+      ...current,
+      status: 'completed',
+      remainingMs: 0,
+    }));
+    playRestCompletionSound(timerPreferences.soundEnabled);
+    setNotice('Rest complete. Ready for the next set.');
+  }, [restTimer, restNow, timerPreferences.soundEnabled]);
+
+
   const realWorkouts = workouts.filter(workout => !workout.sample);
 
   const totalMinutes = realWorkouts.reduce(
@@ -509,6 +673,11 @@ function App() {
   ).values()].sort((a, b) => a.localeCompare(b));
 
   const currentStreak = calculateStreak(realWorkouts);
+  const activeTimerElapsed = getElapsedTimerMs(timerSession, timerNow);
+  const restRemainingMs = getRestRemainingMs(restTimer, restNow);
+  const restProgress = restTimer
+    ? Math.max(0, Math.min(100, (restRemainingMs / restTimer.durationMs) * 100))
+    : 0;
 
   const sortedBodyEntries = [...bodyEntries].sort((a, b) =>
     `${b.date}-${b.createdAt || ''}`.localeCompare(`${a.date}-${a.createdAt || ''}`)
@@ -1556,7 +1725,148 @@ function App() {
     }
   }
 
+  function clearTimerSession() {
+    setTimerSession(null);
+    try {
+      localStorage.removeItem(TIMER_SESSION_KEY);
+    } catch {
+      setNotice('Could not clear the active workout timer.');
+    }
+  }
+
+  function startWorkoutTimer() {
+    if (editingWorkoutId) {
+      setNotice('Start timing from a new workout, not an existing workout edit.');
+      return;
+    }
+
+    const now = Date.now();
+    if (timerSession?.status === 'paused') {
+      setTimerSession(current => ({
+        ...current,
+        status: 'running',
+        startedAt: now,
+        pausedAt: null,
+      }));
+      return;
+    }
+
+    if (timerSession?.status === 'running') return;
+
+    setTimerSession({
+      status: 'running',
+      startedAt: now,
+      accumulatedMs: 0,
+      pausedAt: null,
+      workoutName,
+      exercises,
+    });
+    setTimerNow(now);
+    setNotice('Workout timer started.');
+  }
+
+  function pauseWorkoutTimer() {
+    if (!timerSession || timerSession.status !== 'running') return;
+    const now = Date.now();
+    setTimerSession(current => ({
+      ...current,
+      status: 'paused',
+      pausedAt: now,
+    }));
+    setTimerNow(now);
+  }
+
+  function resumeWorkoutTimer() {
+    if (!timerSession || timerSession.status !== 'paused') return;
+    const now = Date.now();
+    setTimerSession(current => ({
+      ...current,
+      status: 'running',
+      startedAt: now,
+      accumulatedMs: current.accumulatedMs + Math.max(0, now - (current.pausedAt || now)),
+      pausedAt: null,
+    }));
+    setTimerNow(now);
+  }
+
+  function finishWorkoutTimer() {
+    if (!timerSession) return;
+    const elapsedMs = getElapsedTimerMs(timerSession, Date.now());
+    const elapsedMinutes = Math.max(1, Math.ceil(elapsedMs / 60000));
+    setDuration(String(elapsedMinutes));
+    clearTimerSession();
+    setNotice(`Workout timed at ${formatWorkoutTime(elapsedMs)}. Review it before saving.`);
+  }
+
+  function cancelWorkoutTimer() {
+    if (!timerSession) {
+      setShowLogger(false);
+      setEditingWorkoutId(null);
+      return;
+    }
+
+    if (!window.confirm('Cancel this active workout? It will not be saved.')) return;
+    clearTimerSession();
+    setShowLogger(false);
+    setEditingWorkoutId(null);
+    setNotice('');
+  }
+
+  function startRestTimer(seconds = timerPreferences.defaultRestSeconds) {
+    const durationMs = Math.max(1, Number(seconds) || timerPreferences.defaultRestSeconds) * 1000;
+    const now = Date.now();
+    restCompletionRef.current = false;
+    setRestTimer({
+      status: 'running',
+      durationMs,
+      remainingMs: durationMs,
+      endsAt: now + durationMs,
+    });
+    setRestNow(now);
+  }
+
+  function pauseRestTimer() {
+    if (!restTimer || restTimer.status !== 'running') return;
+    const remainingMs = getRestRemainingMs(restTimer, Date.now());
+    setRestTimer(current => ({ ...current, status: 'paused', remainingMs }));
+  }
+
+  function resumeRestTimer() {
+    if (!restTimer || restTimer.status !== 'paused' || restTimer.remainingMs <= 0) return;
+    const now = Date.now();
+    setRestTimer(current => ({
+      ...current,
+      status: 'running',
+      endsAt: now + current.remainingMs,
+    }));
+    setRestNow(now);
+  }
+
+  function resetRestTimer() {
+    restCompletionRef.current = false;
+    setRestTimer(null);
+  }
+
+  function skipRestTimer() {
+    resetRestTimer();
+    setNotice('Rest skipped. Ready for the next set.');
+  }
+
+  function completeExerciseSet(exerciseName) {
+    if (timerPreferences.autoRestPrompt) {
+      startRestTimer();
+      setNotice(`Set complete for ${exerciseName || 'this exercise'}. Rest timer started.`);
+      return;
+    }
+
+    setNotice(`Set complete for ${exerciseName || 'this exercise'}. Start rest when ready.`);
+  }
+
   function openLogger() {
+    if (timerSession) {
+      setShowLogger(true);
+      return;
+    }
     setEditingWorkoutId(null);
     setWorkoutName('');
     setDuration('45');
@@ -1607,6 +1917,11 @@ function App() {
   function saveWorkout(event) {
     event.preventDefault();
     setNotice('');
+
+    if (timerSession) {
+      setNotice('Finish the active workout timer before saving the session.');
+      return;
+    }
 
     if (!workoutName.trim()) {
       setNotice('Enter a workout name first.');
@@ -1882,6 +2197,88 @@ function App() {
             + Log workout
           </button>
         </header>
+
+        {timerSession && (
+          <section className={`active-workout-panel ${timerSession.status}`} aria-live="polite">
+            <div className="active-workout-main">
+              <div className="eyebrow">
+                {timerSession.status === 'paused' ? 'WORKOUT PAUSED' : 'ACTIVE WORKOUT'}
+              </div>
+              <h2>{workoutName || 'Untitled workout'}</h2>
+              <strong className="workout-timer-digits">
+                {formatWorkoutTime(activeTimerElapsed)}
+              </strong>
+              <span className="timer-caption">Elapsed time · paused time excluded</span>
+            </div>
+            <div className="active-workout-actions">
+              {timerSession.status === 'running' ? (
+                <button className="secondary-button" onClick={pauseWorkoutTimer}>Pause</button>
+              ) : (
+                <button className="secondary-button" onClick={resumeWorkoutTimer}>Resume</button>
+              )}
+              <button className="primary-button" onClick={finishWorkoutTimer}>Finish workout</button>
+              <button className="clear-button" onClick={cancelWorkoutTimer}>Cancel</button>
+            </div>
+            <div className="active-rest-controls">
+              <div>
+                <span className="timer-control-label">REST TIMER</span>
+                <strong>{restTimer ? formatRestTime(restRemainingMs) : 'Ready'}</strong>
+              </div>
+              <select
+                value={restPreset}
+                onChange={event => setRestPreset(event.target.value)}
+                aria-label="Rest duration"
+              >
+                <option value="30">30 sec</option>
+                <option value="45">45 sec</option>
+                <option value="60">60 sec</option>
+                <option value="90">90 sec</option>
+                <option value="120">120 sec</option>
+                <option value="custom">Custom</option>
+              </select>
+              {restPreset === 'custom' && (
+                <input
+                  type="number"
+                  min="1"
+                  value={customRestSeconds}
+                  onChange={event => setCustomRestSeconds(event.target.value)}
+                  aria-label="Custom rest duration seconds"
+                />
+              )}
+              {!restTimer && (
+                <button
+                  className="secondary-button"
+                  onClick={() => startRestTimer(restPreset === 'custom' ? customRestSeconds : restPreset)}
+                >
+                  Start rest
+                </button>
+              )}
+              {restTimer?.status === 'running' && (
+                <button className="secondary-button" onClick={pauseRestTimer}>Pause rest</button>
+              )}
+              {restTimer?.status === 'paused' && restRemainingMs > 0 && (
+                <button className="secondary-button" onClick={resumeRestTimer}>Resume rest</button>
+              )}
+              {restTimer && (
+                <>
+                  <button className="clear-button" onClick={skipRestTimer}>Skip</button>
+                  <button className="clear-button" onClick={resetRestTimer}>Reset</button>
+                </>
+              )}
+              {restTimer && (
+                <div className="rest-progress-track" aria-label="Rest timer progress">
+                  <span style={{ width: `${restProgress}%` }} />
+                </div>
+              )}
+              {restTimer &&
+                timerPreferences.warningSeconds > 0 &&
+                restRemainingMs > 0 &&
+                restRemainingMs <= timerPreferences.warningSeconds * 1000 && (
+                  <span className="rest-warning">Rest ending soon</span>
+                )}
+            </div>
+          </section>
+        )}
 
         <section className="stats-grid" id="overview">
           <article className="stat-card">
@@ -3542,8 +3939,7 @@ function App() {
           className="modal-backdrop"
           onMouseDown={event => {
             if (event.target === event.currentTarget) {
-              setShowLogger(false);
-              setEditingWorkoutId(null);
+              cancelWorkoutTimer();
             }
           }}
         >
@@ -3566,10 +3962,7 @@ function App() {
               <button
                 type="button"
                 className="modal-close"
-                onClick={() => {
-                  setShowLogger(false);
-                  setEditingWorkoutId(null);
-                }}
+                onClick={cancelWorkoutTimer}
                 aria-label="Close"
               >
                 ×
@@ -3586,6 +3979,43 @@ function App() {
                   required
                 />
               </label>
+
+              {!editingWorkoutId && (
+                <div className={`timer-launcher ${timerSession ? 'is-active' : ''}`}>
+                  <div>
+                    <span className="timer-control-label">
+                      {timerSession
+                        ? timerSession.status === 'paused' ? 'WORKOUT PAUSED' : 'WORKOUT IN PROGRESS'
+                        : 'SESSION TIMER'}
+                    </span>
+                    <strong>
+                      {timerSession
+                        ? formatWorkoutTime(activeTimerElapsed)
+                        : 'Start when you begin training'}
+                    </strong>
+                  </div>
+                  {!timerSession && (
+                    <button type="button" className="secondary-button" onClick={startWorkoutTimer}>
+                      Start workout
+                    </button>
+                  )}
+                  {timerSession?.status === 'running' && (
+                    <button type="button" className="secondary-button" onClick={pauseWorkoutTimer}>
+                      Pause
+                    </button>
+                  )}
+                  {timerSession?.status === 'paused' && (
+                    <button type="button" className="secondary-button" onClick={resumeWorkoutTimer}>
+                      Resume
+                    </button>
+                  )}
+                  {timerSession && (
+                    <button type="button" className="primary-button" onClick={finishWorkoutTimer}>
+                      Finish
+                    </button>
+                  )}
+                </div>
+              )}
 
               <label className="form-label">
                 Duration (minutes)
@@ -3624,6 +4054,22 @@ function App() {
                           Remove
                         </button>
                       )}
+                    </div>
+                    <div className="set-actions">
+                      <button
+                        type="button"
+                        className="rest-inline-button"
+                        onClick={() => completeExerciseSet(exercise.name)}
+                      >
+                        Set complete
+                      </button>
+                      <button
+                        type="button"
+                        className="rest-inline-button"
+                        onClick={() => startRestTimer(restPreset === 'custom' ? customRestSeconds : restPreset)}
+                      >
+                        Start {restPreset === 'custom' ? `${customRestSeconds}s` : `${restPreset}s`} rest
+                      </button>
                     </div>
 
                     <label className="form-label">
@@ -3685,10 +4131,7 @@ function App() {
                 <button
                   type="button"
                   className="secondary-button"
-                  onClick={() => {
-                    setShowLogger(false);
-                    setEditingWorkoutId(null);
-                  }}
+                  onClick={cancelWorkoutTimer}
                 >
                   Cancel
                 </button>
@@ -3696,6 +4139,65 @@ function App() {
                 <button type="submit" className="primary-button">
                   {editingWorkoutId ? 'Save changes' : 'Save workout'}
                 </button>
+              </div>
+              <div className="timer-preferences">
+                <div className="timer-preferences-heading">
+                  <span className="timer-control-label">TIMER PREFERENCES</span>
+                  <span>Saved on this device</span>
+                </div>
+                <label>
+                  Default rest
+                  <select
+                    value={timerPreferences.defaultRestSeconds}
+                    onChange={event => setTimerPreferences(current => ({
+                      ...current,
+                      defaultRestSeconds: Number(event.target.value),
+                    }))}
+                  >
+                    <option value="30">30 seconds</option>
+                    <option value="45">45 seconds</option>
+                    <option value="60">60 seconds</option>
+                    <option value="90">90 seconds</option>
+                    <option value="120">120 seconds</option>
+                  </select>
+                </label>
+                <label className="timer-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={timerPreferences.soundEnabled}
+                    onChange={event => setTimerPreferences(current => ({
+                      ...current,
+                      soundEnabled: event.target.checked,
+                    }))}
+                  />
+                  Sound when rest ends
+                </label>
+                <label className="timer-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={timerPreferences.autoRestPrompt}
+                    onChange={event => setTimerPreferences(current => ({
+                      ...current,
+                      autoRestPrompt: event.target.checked,
+                    }))}
+                  />
+                  Prompt to start rest after a set
+                </label>
+                <label>
+                  Countdown warning
+                  <select
+                    value={timerPreferences.warningSeconds}
+                    onChange={event => setTimerPreferences(current => ({
+                      ...current,
+                      warningSeconds: Number(event.target.value),
+                    }))}
+                  >
+                    <option value="0">Off</option>
+                    <option value="5">5 seconds</option>
+                    <option value="10">10 seconds</option>
+                    <option value="15">15 seconds</option>
+                  </select>
+                </label>
               </div>
             </form>
           </section>
