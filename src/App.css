@@ -969,3 +969,197 @@ h2 { margin: 0; font: 600 19px 'Space Grotesk', sans-serif; }
     height: 180px;
   }
 }
+/* EXERCISE PROGRESS CHART */
+.exercise-progress-chart,
+.session-comparison-card {
+  margin: 24px 0;
+  padding: 22px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  border-radius: 14px;
+  background: var(--card-inner, rgba(255, 255, 255, 0.025));
+}
+
+.exercise-chart-heading,
+.session-comparison-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.exercise-chart-heading h3,
+.session-comparison-heading h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.exercise-chart-heading p,
+.session-comparison-heading p {
+  margin: 6px 0 0;
+  color: var(--muted-text, #999);
+  font-size: 13px;
+}
+
+.exercise-chart-heading select {
+  min-width: 120px;
+  padding: 9px 12px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.15));
+  border-radius: 8px;
+  background: var(--input-bg, #171717);
+  color: inherit;
+}
+
+.exercise-chart-value {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin-top: 24px;
+}
+
+.exercise-chart-value strong {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.exercise-chart-value span {
+  color: var(--muted-text, #999);
+  font-size: 12px;
+}
+
+.exercise-chart-svg-wrap {
+  width: 100%;
+  margin-top: 14px;
+  overflow: hidden;
+}
+
+.exercise-chart-svg {
+  display: block;
+  width: 100%;
+  min-width: 280px;
+  overflow: visible;
+}
+
+.exercise-chart-gridline {
+  stroke: rgba(150, 150, 150, 0.2);
+  stroke-width: 1;
+  stroke-dasharray: 4 5;
+}
+
+.exercise-chart-line {
+  fill: none;
+  stroke: var(--accent, #b6f36b);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.exercise-chart-point {
+  fill: var(--accent, #b6f36b);
+  stroke: var(--panel-bg, #171717);
+  stroke-width: 2;
+}
+
+.exercise-chart-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted-text, #999);
+  font-size: 11px;
+}
+
+/* SESSION COMPARISON */
+.session-comparison-card {
+  margin-top: 18px;
+}
+
+.session-comparison-dates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 22px 0;
+}
+
+.session-comparison-dates > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.session-comparison-dates span,
+.session-comparison-metric > span {
+  color: var(--muted-text, #999);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+}
+
+.session-comparison-dates strong {
+  font-size: 16px;
+}
+
+.session-comparison-dates small,
+.session-comparison-metric small {
+  color: var(--muted-text, #999);
+  font-size: 12px;
+}
+
+.session-comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.session-comparison-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  border-radius: 10px;
+}
+
+.session-comparison-metric > strong {
+  font-size: 21px;
+}
+
+.comparison-change {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.comparison-change.improved {
+  color: #83d99a;
+}
+
+.comparison-change.declined {
+  color: #f08b8b;
+}
+
+.comparison-change.unchanged {
+  color: var(--muted-text, #999);
+}
+
+@media (max-width: 700px) {
+  .exercise-chart-heading,
+  .session-comparison-heading {
+    flex-direction: column;
+  }
+
+  .session-comparison-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .session-comparison-dates {
+    grid-template-columns: 1fr;
+  }
+
+  .exercise-progress-chart,
+  .session-comparison-card {
+    padding: 15px;
+  }
+}
