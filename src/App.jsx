@@ -60,6 +60,28 @@ const EXERCISE_EQUIPMENT = [
 
 const EXERCISE_DIFFICULTIES = ['Beginner', 'Intermediate', 'Advanced'];
 const EXERCISE_TYPES = ['Weighted', 'Bodyweight', 'Duration-based', 'Distance-based'];
+const GENERATOR_GOALS = [
+  { value: 'hypertrophy', label: 'Muscle building / Hypertrophy' },
+  { value: 'strength', label: 'Strength' },
+  { value: 'fitness', label: 'General fitness' },
+  { value: 'endurance', label: 'Endurance' },
+  { value: 'balanced', label: 'Balanced training' },
+];
+const GENERATOR_FREQUENCIES = [2, 3, 4, 5, 6];
+const GENERATOR_DURATIONS = [30, 45, 60, 75, 90];
+const GENERATOR_MUSCLES = [
+  'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps',
+  'Quadriceps', 'Hamstrings', 'Glutes', 'Calves', 'Core',
+];
+const GENERATOR_EQUIPMENT = [
+  { value: 'full-gym', label: 'Full gym' },
+  { value: 'Dumbbell', label: 'Dumbbells' },
+  { value: 'Barbell', label: 'Barbell' },
+  { value: 'Machine', label: 'Machines' },
+  { value: 'Bodyweight', label: 'Bodyweight' },
+  { value: 'Resistance Band', label: 'Resistance bands' },
+  { value: 'custom', label: 'Custom equipment' },
+];
 
 const BUILT_IN_EXERCISES = [
   {
@@ -735,6 +757,18 @@ function App() {
       completedDates: [],
     }))
   );
+  const [showPlanGenerator, setShowPlanGenerator] = useState(false);
+  const [generatorStep, setGeneratorStep] = useState(1);
+  const [generatorGoal, setGeneratorGoal] = useState('balanced');
+  const [generatorExperience, setGeneratorExperience] = useState('Intermediate');
+  const [generatorFrequency, setGeneratorFrequency] = useState(3);
+  const [generatorDuration, setGeneratorDuration] = useState(60);
+  const [generatorEquipment, setGeneratorEquipment] = useState(['full-gym']);
+  const [generatorCustomEquipment, setGeneratorCustomEquipment] = useState('');
+  const [generatorMuscles, setGeneratorMuscles] = useState([]);
+  const [generatorRestDays, setGeneratorRestDays] = useState(true);
+  const [generatedDays, setGeneratedDays] = useState([]);
+  const [generatorNotice, setGeneratorNotice] = useState('');
 
   useEffect(() => {
     if (!timerSession) return undefined;
@@ -1444,6 +1478,229 @@ function App() {
 
     if (persistPlans(updated) && activePlanId === planId) {
       setActivePlanId(updated[0]?.id || null);
+    }
+  }
+
+  function logPlanDay(day) {
+    openLogger();
+    setWorkoutName(day.name);
+    setExercises(
+      day.exercises.length
+        ? day.exercises.map(name => ({
+            ...emptyExercise(),
+            name: normalizeExerciseName(name),
+          }))
+        : [emptyExercise()]
+    );
+    day.exercises.forEach(name => rememberExercise(name));
+  }
+
+  function getGeneratorRepConfig() {
+    if (generatorGoal === 'strength') {
+      return { sets: generatorExperience === 'Beginner' ? 3 : 4, reps: '4-6', restSeconds: 150 };
+    }
+    if (generatorGoal === 'hypertrophy') {
+      return { sets: generatorExperience === 'Beginner' ? 3 : 4, reps: '8-12', restSeconds: 90 };
+    }
+    if (generatorGoal === 'endurance') {
+      return { sets: 2, reps: '12-20', restSeconds: 45 };
+    }
+    return { sets: 3, reps: '8-12', restSeconds: 75 };
+  }
+
+  function equipmentMatchesExercise(exercise) {
+    if (generatorEquipment.includes('full-gym')) return true;
+    if (generatorEquipment.includes('custom')) {
+      const available = generatorCustomEquipment
+        .split(',')
+        .map(item => item.trim().toLowerCase())
+        .filter(Boolean);
+      if (available.includes(exercise.equipment.toLowerCase())) return true;
+    }
+    return generatorEquipment.includes(exercise.equipment) ||
+      (exercise.equipment === 'Smith Machine' && generatorEquipment.includes('Barbell'));
+  }
+
+  function generateWorkoutPlan() {
+    const frequency = Number(generatorFrequency);
+    const selectedMuscles = generatorMuscles.length ? generatorMuscles : GENERATOR_MUSCLES;
+    const splitNames = frequency === 2
+      ? ['Full Body A', 'Full Body B']
+      : frequency === 3 && generatorExperience === 'Beginner'
+        ? ['Full Body A', 'Full Body B', 'Full Body C']
+        : frequency === 3
+          ? ['Push', 'Pull', 'Legs']
+          : frequency === 4
+            ? ['Upper A', 'Lower A', 'Upper B', 'Lower B']
+            : frequency === 5
+              ? ['Upper', 'Lower', 'Push', 'Pull', 'Legs']
+              : ['Push', 'Pull', 'Legs', 'Push', 'Pull', 'Legs'];
+    const repConfig = getGeneratorRepConfig();
+    const usedExercises = new Set();
+    const difficultyRank = { Beginner: 1, Intermediate: 2, Advanced: 3 };
+    const maxDifficulty = difficultyRank[generatorExperience];
+    const dayMuscles = splitNames.map((name, index) => {
+      if (name.toLowerCase().includes('push')) return ['Chest', 'Shoulders', 'Triceps'].filter(item => selectedMuscles.includes(item));
+      if (name.toLowerCase().includes('pull')) return ['Back', 'Biceps', 'Forearms'].filter(item => selectedMuscles.includes(item));
+      if (name.toLowerCase().includes('leg')) return ['Quadriceps', 'Hamstrings', 'Glutes', 'Calves'].filter(item => selectedMuscles.includes(item));
+      if (name.toLowerCase().includes('upper')) return ['Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps'].filter(item => selectedMuscles.includes(item));
+      if (name.toLowerCase().includes('lower')) return ['Quadriceps', 'Hamstrings', 'Glutes', 'Calves', 'Core'].filter(item => selectedMuscles.includes(item));
+      return selectedMuscles.filter((_, muscleIndex) =>
+        muscleIndex % frequency === index % frequency || frequency <= 3
+      );
+    });
+
+    const desiredExercises = generatorDuration <= 30 ? 3 : generatorDuration <= 45 ? 4 : 5;
+    const days = splitNames.map((name, index) => {
+      const targets = dayMuscles[index].length ? dayMuscles[index] : selectedMuscles;
+      const candidates = allLibraryExercises
+        .filter(exercise => equipmentMatchesExercise(exercise))
+        .filter(exercise => difficultyRank[exercise.difficulty] <= maxDifficulty)
+        .map(exercise => {
+          const targetScore = targets.includes(exercise.primaryMuscle) ? 5 : 0;
+          const secondaryScore = (exercise.secondaryMuscles || []).some(item => targets.includes(item)) ? 2 : 0;
+          const recentPenalty = recentExercises.some(item => item.toLowerCase() === exercise.name.toLowerCase()) ? 1 : 0;
+          const usedPenalty = usedExercises.has(exercise.name.toLowerCase()) ? 4 : 0;
+          const compoundBonus = exercise.category === 'Strength' ? 1 : 0;
+          return { exercise, score: targetScore + secondaryScore + compoundBonus - recentPenalty - usedPenalty };
+        })
+        .sort((a, b) => b.score - a.score || a.exercise.name.localeCompare(b.exercise.name));
+      const selected = [];
+      candidates.forEach(item => {
+        if (selected.length >= desiredExercises) return;
+        const key = item.exercise.name.toLowerCase();
+        if (selected.some(exercise => exercise.name.toLowerCase() === key)) return;
+        selected.push(item.exercise);
+        usedExercises.add(key);
+      });
+
+      return {
+        id: crypto.randomUUID(),
+        name,
+        targetMuscles: targets,
+        restAfter: generatorRestDays && index < splitNames.length - 1 && (index + 1) % 2 === 0,
+        estimatedMinutes: Math.min(generatorDuration, Math.max(20, selected.length * (generatorGoal === 'strength' ? 8 : 6))),
+        completedDates: [],
+        exercises: selected.map(exercise => ({
+          id: crypto.randomUUID(),
+          name: exercise.name,
+          sets: repConfig.sets,
+          reps: repConfig.reps,
+          restSeconds: repConfig.restSeconds,
+        })),
+      };
+    });
+
+    const missing = days.filter(day => day.exercises.length < desiredExercises).length;
+    setGeneratedDays(days);
+    setGeneratorNotice(
+      missing
+        ? `The library has limited compatible exercises for ${missing} day${missing === 1 ? '' : 's'}; available alternatives were used.`
+        : 'Suggested starting values are editable before saving.'
+    );
+    setGeneratorStep(3);
+  }
+
+  function openPlanGenerator(plan = null) {
+    if (plan?.generatorPreferences) {
+      const preferences = plan.generatorPreferences;
+      setGeneratorGoal(preferences.goal || 'balanced');
+      setGeneratorExperience(preferences.experience || 'Intermediate');
+      setGeneratorFrequency(Number(preferences.frequency) || 3);
+      setGeneratorDuration(Number(preferences.duration) || 60);
+      setGeneratorEquipment(preferences.equipment || ['full-gym']);
+      setGeneratorCustomEquipment(preferences.customEquipment || '');
+      setGeneratorMuscles(preferences.muscles || []);
+      setGeneratorRestDays(preferences.restDays !== false);
+    } else {
+      setGeneratorGoal('balanced');
+      setGeneratorExperience('Intermediate');
+      setGeneratorFrequency(3);
+      setGeneratorDuration(60);
+      setGeneratorEquipment(['full-gym']);
+      setGeneratorCustomEquipment('');
+      setGeneratorMuscles([]);
+      setGeneratorRestDays(true);
+    }
+    setGeneratedDays([]);
+    setGeneratorStep(1);
+    setGeneratorNotice('');
+    setShowPlanGenerator(true);
+  }
+
+  function updateGeneratedExercise(dayId, exerciseId, field, value) {
+    setGeneratedDays(current => current.map(day =>
+      day.id !== dayId ? day : {
+        ...day,
+        exercises: day.exercises.map(exercise =>
+          exercise.id === exerciseId ? { ...exercise, [field]: value } : exercise
+        ),
+      }
+    ));
+  }
+
+  function removeGeneratedExercise(dayId, exerciseId) {
+    setGeneratedDays(current => current.map(day =>
+      day.id !== dayId
+        ? day
+        : { ...day, exercises: day.exercises.filter(exercise => exercise.id !== exerciseId) }
+    ));
+  }
+
+  function addGeneratedExercise(dayId, name) {
+    const libraryExercise = allLibraryExercises.find(item => item.name === name);
+    if (!libraryExercise) return;
+    const repConfig = getGeneratorRepConfig();
+    setGeneratedDays(current => current.map(day =>
+      day.id !== dayId || day.exercises.some(exercise => exercise.name === name)
+        ? day
+        : {
+            ...day,
+            exercises: [...day.exercises, {
+              id: crypto.randomUUID(),
+              name,
+              sets: repConfig.sets,
+              reps: repConfig.reps,
+              restSeconds: repConfig.restSeconds,
+            }],
+          }
+    ));
+  }
+
+  function saveGeneratedPlan() {
+    if (!generatedDays.length || generatedDays.some(day => !day.exercises.length)) {
+      setGeneratorNotice('Each training day needs at least one library exercise.');
+      return;
+    }
+    const plan = {
+      id: crypto.randomUUID(),
+      name: `${GENERATOR_GOALS.find(item => item.value === generatorGoal)?.label || 'Generated'} plan`,
+      split: `${generatorFrequency}-day generated`,
+      generated: true,
+      generatorPreferences: {
+        goal: generatorGoal,
+        experience: generatorExperience,
+        frequency: generatorFrequency,
+        duration: generatorDuration,
+        equipment: generatorEquipment,
+        customEquipment: generatorCustomEquipment,
+        muscles: generatorMuscles,
+        restDays: generatorRestDays,
+      },
+      createdAt: new Date().toISOString(),
+      days: generatedDays.map(day => ({
+        id: day.id,
+        name: day.name,
+        exercises: day.exercises.map(exercise => exercise.name),
+        suggestedExercises: day.exercises,
+        targetMuscles: day.targetMuscles,
+        completedDates: day.completedDates || [],
+      })),
+    };
+    if (persistPlans([...plans, plan])) {
+      setActivePlanId(plan.id);
+      setShowPlanGenerator(false);
+      setNotice('Generated workout plan saved.');
     }
   }
 
@@ -3894,9 +4151,14 @@ function App() {
                 Build your split, assign exercises, and track completed sessions.
               </p>
             </div>
-            <button className="primary-button" onClick={startPlanBuilder}>
-              + Create plan
-            </button>
+            <div className="plan-header-actions">
+              <button className="secondary-button" onClick={() => openPlanGenerator()}>
+                Generate plan
+              </button>
+              <button className="primary-button" onClick={startPlanBuilder}>
+                + Create plan
+              </button>
+            </div>
           </div>
 
           {plans.length === 0 ? (
@@ -3948,12 +4210,22 @@ function App() {
                           {completedCount} of {activePlan.days.length} sessions completed today
                         </p>
                       </div>
-                      <button
-                        className="clear-button"
-                        onClick={() => deletePlan(activePlan.id)}
-                      >
-                        Delete plan
-                      </button>
+                      <div className="plan-card-actions">
+                        {activePlan.generated && (
+                          <button
+                            className="secondary-button"
+                            onClick={() => openPlanGenerator(activePlan)}
+                          >
+                            Regenerate
+                          </button>
+                        )}
+                        <button
+                          className="clear-button"
+                          onClick={() => deletePlan(activePlan.id)}
+                        >
+                          Delete plan
+                        </button>
+                      </div>
                     </div>
 
                     <div className="plan-day-grid">
@@ -3985,6 +4257,12 @@ function App() {
                               onClick={() => togglePlanDay(activePlan.id, day.id)}
                             >
                               {completed ? 'Undo completion' : 'Mark completed'}
+                            </button>
+                            <button
+                              className="secondary-button plan-log-button"
+                              onClick={() => logPlanDay(day)}
+                            >
+                              Log this day
                             </button>
                           </article>
                         );
@@ -4355,6 +4633,174 @@ function App() {
                 </button>
               </div>
             </form>
+          </section>
+        </div>
+      )}
+
+      {/* SMART PLAN GENERATOR */}
+      {showPlanGenerator && (
+        <div className="modal-backdrop" onMouseDown={event => {
+          if (event.target === event.currentTarget) setShowPlanGenerator(false);
+        }}>
+          <section className="workout-modal plan-generator-modal" role="dialog" aria-modal="true" aria-labelledby="plan-generator-title">
+            <div className="modal-heading">
+              <div>
+                <div className="eyebrow">DETERMINISTIC PLAN BUILDER</div>
+                <h2 id="plan-generator-title">Generate a workout plan</h2>
+              </div>
+              <button type="button" className="modal-close" onClick={() => setShowPlanGenerator(false)} aria-label="Close">×</button>
+            </div>
+
+            <div className="generator-progress">
+              {[1, 2, 3].map(step => (
+                <span className={generatorStep >= step ? 'active' : ''} key={step}>
+                  {step}. {step === 1 ? 'Goal' : step === 2 ? 'Setup' : 'Preview'}
+                </span>
+              ))}
+            </div>
+
+            {generatorStep === 1 && (
+              <div className="generator-step">
+                <h3>What are you training for?</h3>
+                <div className="generator-choice-grid">
+                  {GENERATOR_GOALS.map(goal => (
+                    <button type="button" className={generatorGoal === goal.value ? 'generator-choice active' : 'generator-choice'} key={goal.value} onClick={() => setGeneratorGoal(goal.value)}>
+                      <strong>{goal.label}</strong>
+                      <span>Suggested starting structure</span>
+                    </button>
+                  ))}
+                </div>
+                <label className="form-label">Experience level
+                  <select value={generatorExperience} onChange={event => setGeneratorExperience(event.target.value)}>
+                    {EXERCISE_DIFFICULTIES.map(level => <option value={level} key={level}>{level}</option>)}
+                  </select>
+                </label>
+                <div className="modal-actions">
+                  <button type="button" className="primary-button" onClick={() => setGeneratorStep(2)}>Continue</button>
+                </div>
+              </div>
+            )}
+
+            {generatorStep === 2 && (
+              <div className="generator-step">
+                <h3>Shape your week</h3>
+                <div className="generator-field-grid">
+                  <label className="form-label">Training days
+                    <select value={generatorFrequency} onChange={event => setGeneratorFrequency(Number(event.target.value))}>
+                      {GENERATOR_FREQUENCIES.map(value => <option value={value} key={value}>{value} days per week</option>)}
+                    </select>
+                  </label>
+                  <label className="form-label">Session duration
+                    <select value={generatorDuration} onChange={event => setGeneratorDuration(Number(event.target.value))}>
+                      {GENERATOR_DURATIONS.map(value => <option value={value} key={value}>{value} minutes</option>)}
+                    </select>
+                  </label>
+                </div>
+                <div className="form-label">
+                  Available equipment
+                  <div className="generator-checkbox-grid">
+                    {GENERATOR_EQUIPMENT.map(item => (
+                      <label key={item.value}>
+                        <input
+                          type="checkbox"
+                          checked={generatorEquipment.includes(item.value)}
+                          onChange={event => setGeneratorEquipment(current =>
+                            event.target.checked
+                              ? [...new Set([...current, item.value])]
+                              : current.filter(value => value !== item.value)
+                          )}
+                        />
+                        {item.label}
+                      </label>
+                    ))}
+                  </div>
+                  {generatorEquipment.includes('custom') && (
+                    <input
+                      className="generator-custom-equipment"
+                      value={generatorCustomEquipment}
+                      onChange={event => setGeneratorCustomEquipment(event.target.value)}
+                      placeholder="Enter equipment, separated by commas"
+                      aria-label="Custom equipment"
+                    />
+                  )}
+                </div>
+                <div className="form-label">
+                  Target muscles <span className="form-help">Leave empty for a balanced selection.</span>
+                  <div className="generator-checkbox-grid">
+                    {GENERATOR_MUSCLES.map(muscle => (
+                      <label key={muscle}>
+                        <input
+                          type="checkbox"
+                          checked={generatorMuscles.includes(muscle)}
+                          onChange={event => setGeneratorMuscles(current =>
+                            event.target.checked
+                              ? [...current, muscle]
+                              : current.filter(value => value !== muscle)
+                          )}
+                        />
+                        {muscle}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <label className="timer-checkbox">
+                  <input type="checkbox" checked={generatorRestDays} onChange={event => setGeneratorRestDays(event.target.checked)} />
+                  Keep rest days between repeated muscle groups
+                </label>
+                <div className="modal-actions">
+                  <button type="button" className="secondary-button" onClick={() => setGeneratorStep(1)}>Back</button>
+                  <button type="button" className="primary-button" onClick={generateWorkoutPlan}>Generate preview</button>
+                </div>
+              </div>
+            )}
+
+            {generatorStep === 3 && (
+              <div className="generator-step">
+                <div className="generator-preview-heading">
+                  <div>
+                    <h3>Generated plan preview</h3>
+                    <p>Suggested values are editable starting points, not prescriptions.</p>
+                  </div>
+                  <button type="button" className="secondary-button" onClick={() => setGeneratorStep(2)}>Change setup</button>
+                </div>
+                {generatorNotice && <p className="form-help generator-notice">{generatorNotice}</p>}
+                <div className="generated-day-list">
+                  {generatedDays.map(day => (
+                    <article className="generated-day-card" key={day.id}>
+                      <div className="generated-day-heading">
+                        <div>
+                          <span className="panel-tag">{day.targetMuscles.join(' · ') || 'Balanced'}</span>
+                          <h4>{day.name}</h4>
+                        </div>
+                        <span>{day.exercises.length} exercises · ~{day.estimatedMinutes} min</span>
+                      </div>
+                      <div className="generated-exercise-list">
+                        {day.exercises.map(exercise => (
+                          <div className="generated-exercise-row" key={exercise.id}>
+                            <strong>{exercise.name}</strong>
+                            <input type="number" min="1" value={exercise.sets} onChange={event => updateGeneratedExercise(day.id, exercise.id, 'sets', Number(event.target.value))} aria-label={`${exercise.name} sets`} />
+                            <input value={exercise.reps} onChange={event => updateGeneratedExercise(day.id, exercise.id, 'reps', event.target.value)} aria-label={`${exercise.name} reps`} />
+                            <input type="number" min="15" step="15" value={exercise.restSeconds} onChange={event => updateGeneratedExercise(day.id, exercise.id, 'restSeconds', Number(event.target.value))} aria-label={`${exercise.name} rest seconds`} />
+                            <button type="button" className="clear-button" onClick={() => removeGeneratedExercise(day.id, exercise.id)}>Remove</button>
+                          </div>
+                        ))}
+                      </div>
+                      {day.restAfter && <div className="generated-rest-note">Rest day recommended before the next training session.</div>}
+                      <label className="generated-add-exercise">Add library exercise
+                        <select value="" onChange={event => addGeneratedExercise(day.id, event.target.value)}>
+                          <option value="">Choose exercise</option>
+                          {allLibraryExercises.filter(exercise => !day.exercises.some(item => item.name === exercise.name)).map(exercise => <option value={exercise.name} key={exercise.id}>{exercise.name}</option>)}
+                        </select>
+                      </label>
+                    </article>
+                  ))}
+                </div>
+                <div className="modal-actions">
+                  <button type="button" className="secondary-button" onClick={generateWorkoutPlan}>Regenerate</button>
+                  <button type="button" className="primary-button" onClick={saveGeneratedPlan}>Save to workout plans</button>
+                </div>
+              </div>
+            )}
           </section>
         </div>
       )}
