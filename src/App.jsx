@@ -3,6 +3,7 @@ import './App.css';
 
 const STORAGE_KEY = 'zentraq-workouts';
 const PLANS_KEY = 'zentraq-workout-plans';
+const PR_NOTIFICATIONS_KEY = 'zentraq-pr-notifications';
 
 const PLAN_TEMPLATES = {
   'Push / Pull / Legs': [
@@ -116,6 +117,57 @@ function loadPlans() {
   }
 }
 
+function loadPRNotifications() {
+  try {
+    const saved = localStorage.getItem(PR_NOTIFICATIONS_KEY);
+    const parsed = saved ? JSON.parse(saved) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function getExerciseMetrics(exercise) {
+  const sets = Number(exercise.sets) || 0;
+  const reps = Number(exercise.reps) || 0;
+  const weight = Number(exercise.weight) || 0;
+
+  return {
+    weight,
+    reps,
+    volume: sets * reps * weight,
+  };
+}
+
+function getBestExerciseMetrics(workouts, exerciseName, excludedWorkoutId = null) {
+  const sessions = workouts.flatMap(workout =>
+    workout.id === excludedWorkoutId
+      ? []
+      : (workout.exercises || [])
+        .filter(exercise =>
+          exercise.name?.trim().toLowerCase() === exerciseName.toLowerCase()
+        )
+        .map(exercise => ({
+          ...getExerciseMetrics(exercise),
+          date: workout.date,
+          workoutName: workout.name,
+        }))
+  );
+
+  const best = metric =>
+    sessions.reduce(
+      (record, session) =>
+        !record || session[metric] > record[metric] ? session : record,
+      null
+    );
+
+  return {
+    weight: best('weight'),
+    reps: best('reps'),
+    volume: best('volume'),
+  };
+}
+
 function calculateStreak(workouts) {
   const workoutDays = new Set(workouts.map(getWorkoutDateKey).filter(Boolean));
   const today = new Date();
@@ -147,6 +199,8 @@ function App() {
   const [duration, setDuration] = useState('45');
   const [exercises, setExercises] = useState([emptyExercise()]);
   const [notice, setNotice] = useState('');
+  const [prNotifications, setPRNotifications] = useState(loadPRNotifications);
+  const [activePRNotifications, setActivePRNotifications] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState('newest');
   const [historyFilter, setHistoryFilter] = useState('all');
@@ -553,6 +607,29 @@ function App() {
     }
   }
 
+  function persistPRNotifications(updated) {
+    try {
+      localStorage.setItem(PR_NOTIFICATIONS_KEY, JSON.stringify(updated));
+      setPRNotifications(updated);
+      return true;
+    } catch {
+      setNotice('Could not save PR notifications. Check browser storage.');
+      return false;
+    }
+  }
+
+  function dismissPRNotification(id) {
+    setActivePRNotifications(current =>
+      current.filter(notification => notification.id !== id)
+    );
+  }
+
+  function dismissPRHistoryItem(id) {
+    persistPRNotifications(
+      prNotifications.filter(notification => notification.id !== id)
+    );
+  }
+
   function exportBackup() {
     try {
       const backup = {
@@ -705,6 +782,9 @@ function App() {
     const existingWorkout = realWorkouts.find(
       workout => workout.id === editingWorkoutId
     );
+    const previousWorkouts = realWorkouts.filter(
+      workout => workout.id !== existingWorkout?.id
+    );
 
     const volume = validExercises.reduce((total, exercise) => {
       return total +
@@ -728,6 +808,70 @@ function App() {
       sample: false,
     };
 
+    const newPRs = [];
+    const seenExercises = new Set();
+
+    validExercises.forEach(exercise => {
+      const exerciseName = exercise.name.trim();
+      const exerciseKey = exerciseName.toLowerCase();
+
+      if (seenExercises.has(exerciseKey)) return;
+      seenExercises.add(exerciseKey);
+
+      const metrics = validExercises
+        .filter(item => item.name.trim().toLowerCase() === exerciseKey)
+        .map(getExerciseMetrics);
+      const current = {
+        weight: Math.max(...metrics.map(metric => metric.weight)),
+        reps: Math.max(...metrics.map(metric => metric.reps)),
+        volume: Math.max(...metrics.map(metric => metric.volume)),
+      };
+      const previous = getBestExerciseMetrics(
+        previousWorkouts,
+        exerciseKey
+      );
+      const oldMetrics = existingWorkout
+        ? existingWorkout.exercises
+          .filter(item => item.name?.trim().toLowerCase() === exerciseKey)
+          .map(getExerciseMetrics)
+        : [];
+      const oldValue = metric =>
+        oldMetrics.length
+          ? Math.max(...oldMetrics.map(item => item[metric]))
+          : null;
+      const recordTypes = [
+        { key: 'weight', label: 'Heaviest weight', unit: 'kg' },
+        { key: 'reps', label: 'Most reps', unit: 'reps' },
+        { key: 'volume', label: 'Highest volume', unit: 'kg' },
+      ];
+
+      recordTypes.forEach(recordType => {
+        const newValue = current[recordType.key];
+        const previousValue = previous[recordType.key]?.[recordType.key] ?? null;
+
+        const isNewRecord =
+          (previousValue === null || newValue > previousValue) &&
+          (!existingWorkout ||
+            oldValue(recordType.key) === null ||
+            newValue > oldValue(recordType.key));
+
+        if (isNewRecord) {
+          newPRs.push({
+            id: crypto.randomUUID(),
+            exerciseName,
+            category: recordType.label,
+            metric: recordType.key,
+            previousValue,
+            value: newValue,
+            unit: recordType.unit,
+            date: newWorkout.date,
+            dateISO: newWorkout.dateISO,
+            workoutName: newWorkout.name,
+          });
+        }
+      });
+    });
+
     const updated = editingWorkoutId
       ? realWorkouts.map(workout =>
           workout.id === editingWorkoutId ? newWorkout : workout
@@ -735,6 +879,10 @@ function App() {
       : [newWorkout, ...realWorkouts];
 
     if (persistWorkouts(updated)) {
+      if (newPRs.length) {
+        persistPRNotifications([...newPRs, ...prNotifications]);
+        setActivePRNotifications(newPRs);
+      }
       setShowLogger(false);
       setEditingWorkoutId(null);
       setNotice('');
@@ -768,6 +916,47 @@ function App() {
 
   return (
     <div className="app-shell">
+      {activePRNotifications.length > 0 && (
+        <aside className="pr-toast-stack" aria-live="polite">
+          <div className="pr-toast-heading">
+            <div>
+              <span className="eyebrow">PERSONAL RECORDS</span>
+              <strong>New best performance</strong>
+            </div>
+            <button
+              type="button"
+              className="pr-toast-dismiss-all"
+              onClick={() => setActivePRNotifications([])}
+              aria-label="Dismiss all PR notifications"
+            >
+              ×
+            </button>
+          </div>
+          <div className="pr-toast-list">
+            {activePRNotifications.map(notification => (
+              <div className="pr-toast" key={notification.id}>
+                <div>
+                  <strong>{notification.exerciseName}</strong>
+                  <span>{notification.category}</span>
+                  <p>
+                    {notification.previousValue === null
+                      ? 'First recorded best'
+                      : `${notification.previousValue.toLocaleString('en-US')} ${notification.unit} → `}
+                    <b>{notification.value.toLocaleString('en-US')} {notification.unit}</b>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => dismissPRNotification(notification.id)}
+                  aria-label={`Dismiss ${notification.exerciseName} ${notification.category} notification`}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        </aside>
+      )}
       <aside className="sidebar">
         <div className="brand">
           <span>ZENTRAQ<span className="brand-light"> FORGE</span></span>
@@ -780,6 +969,7 @@ function App() {
           <a className="nav-item" href="#history">Workout history</a>
           <a className="nav-item" href="#progress">Progress</a>
           <a className="nav-item" href="#personal-records">Personal records</a>
+          <a className="nav-item" href="#pr-notifications">PR notifications</a>
           <a className="nav-item" href="#plans">Workout plans</a>
         </nav>
 
@@ -1139,6 +1329,54 @@ function App() {
           ) : (
             <div className="progress-empty">
               Log a workout with exercises to build your exercise history.
+            </div>
+          )}
+        </section>
+
+        <section className="panel pr-notifications-panel" id="pr-notifications">
+          <div className="history-heading">
+            <div>
+              <div className="eyebrow">ACHIEVEMENT LOG</div>
+              <h2>PR notifications</h2>
+              <p className="history-subtitle">
+                Every new personal best achieved in your saved workouts.
+              </p>
+            </div>
+            <span className="panel-tag">{prNotifications.length} ACHIEVEMENTS</span>
+          </div>
+
+          {prNotifications.length ? (
+            <div className="pr-history-list">
+              {prNotifications.map(notification => (
+                <article className="pr-history-row" key={notification.id}>
+                  <div className="pr-history-icon">✦</div>
+                  <div className="pr-history-main">
+                    <strong>{notification.exerciseName}</strong>
+                    <span>{notification.category} · {notification.workoutName}</span>
+                  </div>
+                  <div className="pr-history-values">
+                    <strong>{notification.value.toLocaleString('en-US')} {notification.unit}</strong>
+                    <span>
+                      {notification.previousValue === null
+                        ? 'First record'
+                        : `From ${notification.previousValue.toLocaleString('en-US')} ${notification.unit}`}
+                    </span>
+                  </div>
+                  <div className="pr-history-date">{notification.date}</div>
+                  <button
+                    type="button"
+                    className="pr-history-dismiss"
+                    onClick={() => dismissPRHistoryItem(notification.id)}
+                    aria-label={`Dismiss ${notification.exerciseName} ${notification.category} history item`}
+                  >
+                    Dismiss
+                  </button>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="progress-empty">
+              New personal bests will appear here after you save a workout.
             </div>
           )}
         </section>
