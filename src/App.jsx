@@ -5831,8 +5831,10 @@ function App() {
 export default App;
 
 const generateId = () => {
-  if (typeof crypto !== "undefined" &&
-      typeof crypto.randomUUID === "function") {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return crypto.randomUUID();
   }
 
