@@ -1,6 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import './App.css';
 
+const generateId = () => {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+};
+
 const STORAGE_KEY = 'zentraq-workouts';
 const PLANS_KEY = 'zentraq-workout-plans';
 const PR_NOTIFICATIONS_KEY = 'zentraq-pr-notifications';
@@ -5829,14 +5840,3 @@ function App() {
 }
 
 export default App;
-
-const generateId = () => {
-  if (
-    typeof crypto !== "undefined" &&
-    typeof crypto.randomUUID === "function"
-  ) {
-    return crypto.randomUUID();
-  }
-
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-};
