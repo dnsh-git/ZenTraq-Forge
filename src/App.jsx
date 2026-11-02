@@ -6,7 +6,7 @@ const generateId = () => {
     typeof crypto !== "undefined" &&
     typeof crypto.randomUUID === "function"
   ) {
-    return crypto.randomUUID();
+    return generateId();
   }
 
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -315,7 +315,7 @@ function getWorkoutDateKey(workout) {
 
 function emptyExercise() {
   return {
-    id: crypto.randomUUID(),
+    id: generateId(),
     name: '',
     sets: '3',
     reps: '10',
@@ -434,7 +434,7 @@ function loadNutritionLogs() {
     .filter(log => log && typeof log.date === 'string')
     .map(log => ({
       ...log,
-      id: typeof log.id === 'string' ? log.id : crypto.randomUUID(),
+      id: typeof log.id === 'string' ? log.id : generateId(),
       meals: Object.fromEntries(['breakfast', 'lunch', 'dinner', 'snacks'].map(meal => [
         meal,
         Array.isArray(log.meals?.[meal])
@@ -905,7 +905,7 @@ function App() {
   const [planDays, setPlanDays] = useState(
     PLAN_TEMPLATES['Push / Pull / Legs'].map(day => ({
       ...day,
-      id: crypto.randomUUID(),
+      id: generateId(),
       completedDates: [],
     }))
   );
@@ -1556,7 +1556,7 @@ function App() {
     setPlanDays(
       PLAN_TEMPLATES['Push / Pull / Legs'].map(day => ({
         ...day,
-        id: crypto.randomUUID(),
+        id: generateId(),
         completedDates: [],
       }))
     );
@@ -1573,7 +1573,7 @@ function App() {
     setPlanDays(
       templateDays.map(day => ({
         ...day,
-        id: crypto.randomUUID(),
+        id: generateId(),
         completedDates: [],
       }))
     );
@@ -1591,7 +1591,7 @@ function App() {
     setPlanDays(current => [
       ...current,
       {
-        id: crypto.randomUUID(),
+        id: generateId(),
         name: `Day ${current.length + 1}`,
         exercises: '',
         completedDates: [],
@@ -1615,7 +1615,7 @@ function App() {
     }
 
     const plan = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       name: planName.trim(),
       split: planTemplate,
       createdAt: new Date().toISOString(),
@@ -1771,14 +1771,14 @@ function App() {
       });
 
       return {
-        id: crypto.randomUUID(),
+        id: generateId(),
         name,
         targetMuscles: targets,
         restAfter: generatorRestDays && index < splitNames.length - 1 && (index + 1) % 2 === 0,
         estimatedMinutes: Math.min(generatorDuration, Math.max(20, selected.length * (generatorGoal === 'strength' ? 8 : 6))),
         completedDates: [],
         exercises: selected.map(exercise => ({
-          id: crypto.randomUUID(),
+          id: generateId(),
           name: exercise.name,
           sets: repConfig.sets,
           reps: repConfig.reps,
@@ -1826,7 +1826,7 @@ function App() {
         : {
             ...day,
             exercises: [...day.exercises, {
-              id: crypto.randomUUID(),
+              id: generateId(),
               name,
               sets: repConfig.sets,
               reps: repConfig.reps,
@@ -1842,7 +1842,7 @@ function App() {
       return;
     }
     const plan = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       name: `${GENERATOR_GOALS.find(item => item.value === generatorGoal)?.label || 'Generated'} plan`,
       split: `${generatorFrequency}-day generated`,
       generated: true,
@@ -1897,7 +1897,7 @@ function App() {
           if (percentage >= milestone && !nextMilestones.includes(milestone)) {
             nextMilestones.push(milestone);
             notifications.push({
-              id: crypto.randomUUID(),
+              id: generateId(),
               goalId: goal.id,
               title: goal.title,
               milestone,
@@ -2033,7 +2033,7 @@ function App() {
 
   function updateNutritionLog(updater) {
       const existing = nutritionLogs.find(log => log.date === nutritionDate) || {
-        id: crypto.randomUUID(),
+        id: generateId(),
         date: nutritionDate,
         meals: { breakfast: [], lunch: [], dinner: [], snacks: [] },
         notes: {},
@@ -2071,7 +2071,7 @@ function App() {
         meals: {
           ...log.meals,
           [nutritionMeal]: [...(log.meals[nutritionMeal] || []), {
-            id: crypto.randomUUID(),
+            id: generateId(),
             foodId: nutritionSelectedFood.id,
             name: nutritionSelectedFood.name,
             servingSize: nutritionSelectedFood.servingSize,
@@ -2173,7 +2173,7 @@ function App() {
         return;
       }
       const food = {
-        id: editingFoodId || crypto.randomUUID(),
+        id: editingFoodId || generateId(),
         name: normalizeExerciseName(foodBuilderName),
         servingSize: Number(foodBuilderServingSize),
         servingUnit: foodBuilderServingUnit.trim() || 'serving',
@@ -2270,7 +2270,7 @@ function App() {
 
     const existing = bodyEntries.find(entry => entry.id === editingBodyEntryId);
     const entry = {
-      id: existing?.id || crypto.randomUUID(),
+      id: existing?.id || generateId(),
       date: measurementDate,
       weightKg: weight === null ? null : convertWeightToKg(weight, bodyWeightUnit),
       weightUnit: bodyWeightUnit,
@@ -2378,7 +2378,7 @@ function App() {
 
     const existing = customExercises.find(exercise => exercise.id === editingExerciseId);
     const exercise = {
-      id: existing?.id || `custom-${crypto.randomUUID()}`,
+      id: existing?.id || `custom-${generateId()}`,
       name,
       primaryMuscle: exerciseBuilderPrimary,
       secondaryMuscles: exerciseBuilderSecondary,
@@ -2481,7 +2481,7 @@ function App() {
 
     const existingGoal = goals.find(goal => goal.id === editingGoalId);
     const goal = {
-      id: existingGoal?.id || crypto.randomUUID(),
+      id: existingGoal?.id || generateId(),
       title: goalTitle.trim(),
       type: goalType,
       targetValue: Number(goalTargetValue),
@@ -2868,7 +2868,7 @@ function App() {
     setExercises(
       workout.exercises.length
         ? workout.exercises.map(exercise => ({
-            id: exercise.id || crypto.randomUUID(),
+            id: exercise.id || generateId(),
             name: exercise.name || '',
             sets: String(exercise.sets ?? 3),
             reps: String(exercise.reps ?? 10),
@@ -2954,7 +2954,7 @@ function App() {
     }, 0);
 
     const newWorkout = {
-      id: existingWorkout?.id || crypto.randomUUID(),
+      id: existingWorkout?.id || generateId(),
       name: workoutName.trim(),
       detail: validExercises.map(exercise => exercise.name.trim()).join(', '),
       date: existingWorkout?.date || formatDate(),
@@ -3017,7 +3017,7 @@ function App() {
 
         if (isNewRecord) {
           newPRs.push({
-            id: crypto.randomUUID(),
+            id: generateId(),
             exerciseName,
             category: recordType.label,
             metric: recordType.key,
