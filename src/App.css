@@ -3616,3 +3616,81 @@ textarea::placeholder {
 .workspace-card-arrow {
   color: #38BDF8;
 }
+
+/* =========================================
+   LEVEL 4.4 — DASHBOARD RESPONSIVENESS
+========================================= */
+
+@media (max-width: 900px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workspace-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .stats-grid {
+    gap: 10px;
+    margin-bottom: 13px;
+  }
+
+  .stats-grid .stat-card {
+    min-height: 125px;
+    padding: 15px;
+    border-radius: 15px;
+  }
+
+  .stats-grid .stat-number {
+    font-size: 26px;
+    margin-top: 15px;
+  }
+
+  .stats-grid .stat-top {
+    font-size: 10px;
+  }
+
+  .stats-grid .stat-foot {
+    font-size: 9px;
+  }
+
+  .content-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .content-grid .panel {
+    padding: 18px;
+    border-radius: 16px;
+  }
+
+  .activity-chart {
+    gap: 8px;
+  }
+
+  .workspace-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .workspace-card {
+    padding: 16px;
+    min-height: 105px;
+  }
+}
+
+@media (max-width: 360px) {
+  .stats-grid .stat-card {
+    padding: 12px;
+  }
+
+  .stats-grid .stat-number {
+    font-size: 23px;
+  }
+
+  .workspace-card {
+    padding: 13px;
+  }
+}
