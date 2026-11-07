@@ -2815,3 +2815,75 @@ body {
   .workout-modal { padding: 14px; }
   .modal-actions { bottom: -14px; margin: 0 -14px -14px; padding: 10px 14px 14px; }
 }
+
+/* =========================================
+   ZENTRAQ FORGE — LEVEL 1 DESIGN SYSTEM
+   Primary Theme: Electric Blue + Cyan
+========================================= */
+
+:root {
+  /* Backgrounds */
+  --zf-bg-primary: #080F1B;
+  --zf-bg-secondary: #0D1726;
+  --zf-bg-tertiary: #111E30;
+
+  /* Card surfaces */
+  --zf-card: #111E30;
+  --zf-card-hover: #172940;
+  --zf-card-glass: rgba(17, 30, 48, 0.82);
+
+  /* Brand colours */
+  --zf-primary: #168BFF;
+  --zf-primary-hover: #3BA0FF;
+  --zf-cyan: #00D5FF;
+  --zf-blue-glow: rgba(22, 139, 255, 0.22);
+
+  /* Secondary accents */
+  --zf-purple: #A855F7;
+  --zf-amber: #F59E0B;
+  --zf-magenta: #EC4899;
+  --zf-green: #22C58B;
+
+  /* Text */
+  --zf-text-primary: #F1F5F9;
+  --zf-text-secondary: #A5B4C7;
+  --zf-text-muted: #718198;
+
+  /* Borders */
+  --zf-border: rgba(148, 163, 184, 0.13);
+  --zf-border-active: rgba(22, 139, 255, 0.55);
+
+  /* Effects */
+  --zf-shadow: 0 12px 35px rgba(0, 0, 0, 0.25);
+  --zf-glow: 0 0 22px rgba(22, 139, 255, 0.16);
+
+  /* Shape */
+  --zf-radius-sm: 10px;
+  --zf-radius-md: 15px;
+  --zf-radius-lg: 20px;
+  --zf-radius-xl: 25px;
+
+  /* Spacing */
+  --zf-space-1: 4px;
+  --zf-space-2: 8px;
+  --zf-space-3: 12px;
+  --zf-space-4: 16px;
+  --zf-space-5: 20px;
+  --zf-space-6: 24px;
+
+  /* Motion */
+  --zf-transition: 180ms ease;
+}
+
+/* Global font and rendering */
+body {
+  font-family: 'DM Sans', sans-serif;
+  color: var(--zf-text-primary);
+  background: var(--zf-bg-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--zf-primary);
+  color: #ffffff;
+}
