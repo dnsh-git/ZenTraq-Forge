@@ -2887,3 +2887,82 @@ body {
   background: var(--zf-primary);
   color: #ffffff;
 }
+
+/* =========================================
+   LEVEL 2.1 — GLOBAL LAYOUT REDESIGN
+========================================= */
+
+.app-shell {
+  background: var(--zf-bg-primary);
+  color: var(--zf-text-primary);
+}
+
+.sidebar {
+  background: #0B1422;
+  border-right: 1px solid var(--zf-border);
+  backdrop-filter: blur(18px);
+}
+
+.main-content {
+  background:
+    radial-gradient(
+      ellipse at 85% 0%,
+      rgba(22, 139, 255, 0.075),
+      transparent 38%
+    ),
+    var(--zf-bg-primary);
+}
+
+.topbar {
+  background: rgba(8, 15, 27, 0.88);
+  border-bottom: 1px solid var(--zf-border);
+  backdrop-filter: blur(16px);
+}
+
+.page-content {
+  color: var(--zf-text-primary);
+}
+
+.brand-mark {
+  background: linear-gradient(135deg, #168BFF, #00D5FF);
+  color: #FFFFFF;
+  box-shadow: 0 0 20px rgba(22, 139, 255, 0.25);
+}
+
+.brand-light {
+  color: var(--zf-cyan);
+}
+
+.nav-item {
+  transition: var(--zf-transition);
+}
+
+.nav-item:hover {
+  background: rgba(22, 139, 255, 0.09);
+  color: #FFFFFF;
+}
+
+.nav-item.active {
+  background: linear-gradient(
+    90deg,
+    rgba(22, 139, 255, 0.19),
+    rgba(0, 213, 255, 0.055)
+  );
+  color: var(--zf-cyan);
+  border: 1px solid rgba(22, 139, 255, 0.18);
+}
+
+.avatar {
+  background: #142E4B;
+  border-color: #168BFF;
+  color: #BCE7FF;
+}
+
+h1 > span {
+  color: var(--zf-cyan);
+}
+
+.eyebrow,
+.panel-kicker {
+  color: var(--zf-text-secondary);
+}
