@@ -3532,3 +3532,87 @@ textarea::placeholder {
   background: rgba(22, 139, 255, 0.045);
   border-radius: 12px;
 }
+
+/* =========================================
+   LEVEL 4.3 — DASHBOARD FOCUS & SHORTCUTS
+========================================= */
+
+.content-grid .focus-panel {
+  background: linear-gradient(
+    135deg,
+    #12355B,
+    #102039 70%,
+    #101A2B
+  );
+
+  border-color: rgba(22, 139, 255, 0.3);
+}
+
+.focus-panel .eyebrow {
+  color: #54CEFF;
+}
+
+.focus-panel h2,
+.focus-panel h3 {
+  color: #F0F8FF;
+}
+
+.focus-panel > p {
+  color: #B0C4DA;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.focus-panel .secondary-button {
+  margin-top: 20px;
+  color: #FFFFFF;
+  background: rgba(22, 139, 255, 0.15);
+  border-color: rgba(22, 139, 255, 0.35);
+}
+
+.focus-panel .secondary-button:hover {
+  background: #168BFF;
+  border-color: #168BFF;
+}
+
+/* Quick navigation cards */
+
+.workspace-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 13px;
+  margin-top: 18px;
+}
+
+.workspace-card {
+  position: relative;
+  padding: 20px;
+
+  background: #101E31;
+  border: 1px solid rgba(66, 153, 225, 0.16);
+  border-radius: 15px;
+
+  transition: 180ms ease;
+}
+
+.workspace-card:hover {
+  transform: translateY(-3px);
+  background: #152A43;
+  border-color: rgba(22, 139, 255, 0.4);
+  box-shadow: 0 8px 22px rgba(22, 139, 255, 0.09);
+}
+
+.workspace-card strong {
+  color: #EAF5FF;
+  font-size: 13px;
+}
+
+.workspace-card > span:last-child {
+  color: #91A6BD;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.workspace-card-arrow {
+  color: #38BDF8;
+}
