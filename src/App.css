@@ -3035,3 +3035,87 @@ h1 > span {
   border-color: rgba(22, 139, 255, 0.25);
   color: var(--zf-cyan);
 }
+
+/* =========================================
+   LEVEL 2.3 — INTERACTIVE COMPONENTS
+========================================= */
+
+.primary-button {
+  background: linear-gradient(
+    110deg,
+    #168BFF,
+    #00BFEF
+  );
+  color: #FFFFFF;
+  border-radius: var(--zf-radius-sm);
+  box-shadow: 0 5px 20px rgba(22, 139, 255, 0.17);
+  transition: var(--zf-transition);
+}
+
+.primary-button:hover {
+  background: linear-gradient(
+    110deg,
+    #3BA0FF,
+    #38D9F5
+  );
+  box-shadow: 0 5px 24px rgba(22, 139, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.secondary-button {
+  border-color: var(--zf-border);
+  color: var(--zf-text-secondary);
+  border-radius: var(--zf-radius-sm);
+}
+
+.secondary-button:hover {
+  border-color: var(--zf-primary);
+  color: var(--zf-cyan);
+}
+
+.text-button,
+.text-link {
+  color: var(--zf-cyan);
+}
+
+input,
+select,
+textarea,
+.logger-modal input {
+  background-color: #0B1626;
+  border-color: rgba(148, 163, 184, 0.2);
+  color: var(--zf-text-primary);
+  border-radius: var(--zf-radius-sm);
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+.logger-modal input:focus {
+  border-color: var(--zf-primary);
+  box-shadow: 0 0 0 3px rgba(22, 139, 255, 0.13);
+  background-color: #102039;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--zf-text-muted);
+}
+
+.modal-close,
+.close-button {
+  border-color: var(--zf-border);
+  background: #142238;
+  color: var(--zf-text-secondary);
+}
+
+.modal-close:hover,
+.close-button:hover {
+  border-color: var(--zf-primary);
+  color: var(--zf-cyan);
+}
+
+.period-badge {
+  border-color: var(--zf-border);
+  color: var(--zf-text-secondary);
+}
