@@ -2966,3 +2966,72 @@ h1 > span {
 .panel-kicker {
   color: var(--zf-text-secondary);
 }
+
+/* =========================================
+   LEVEL 2.2 — CARD SYSTEM
+========================================= */
+
+.panel,
+.stat-card,
+.sidebar-plan,
+.exercise-card,
+.workout-modal,
+.logger-modal {
+  background: var(--zf-card);
+  border: 1px solid var(--zf-border);
+  border-radius: var(--zf-radius-lg);
+  box-shadow: var(--zf-shadow);
+  transition:
+    background var(--zf-transition),
+    border-color var(--zf-transition),
+    box-shadow var(--zf-transition);
+}
+
+.stat-card:hover,
+.panel:hover {
+  border-color: rgba(22, 139, 255, 0.3);
+}
+
+.stat-icon,
+.plan-icon {
+  color: var(--zf-cyan);
+}
+
+.highlight-stat {
+  background: linear-gradient(
+    145deg,
+    #142B45,
+    #111E30
+  );
+  border-color: rgba(22, 139, 255, 0.35);
+}
+
+.stat-accent {
+  color: var(--zf-cyan);
+}
+
+.focus-panel {
+  background: linear-gradient(
+    145deg,
+    #102947,
+    #111E30 75%
+  );
+}
+
+.focus-symbol {
+  color: var(--zf-cyan);
+  background: rgba(22, 139, 255, 0.12);
+  border-color: rgba(22, 139, 255, 0.3);
+}
+
+.focus-illustration span {
+  background: rgba(22, 139, 255, 0.09);
+  border-color: rgba(22, 139, 255, 0.2);
+  color: var(--zf-cyan);
+}
+
+.workout-symbol {
+  background: rgba(22, 139, 255, 0.12);
+  border-color: rgba(22, 139, 255, 0.25);
+  color: var(--zf-cyan);
+}
