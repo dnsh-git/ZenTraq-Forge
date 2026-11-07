@@ -3382,3 +3382,153 @@ textarea::placeholder {
   background: rgba(0, 213, 255, 0.13);
   color: #00D5FF;
 }
+
+/* =========================================
+   LEVEL 4.2 — DASHBOARD ANALYTICS PANELS
+========================================= */
+
+.content-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.content-grid .panel {
+  min-width: 0;
+  padding: 22px;
+
+  background: linear-gradient(
+    145deg,
+    #122137,
+    #0E1929
+  );
+
+  border: 1px solid rgba(66, 153, 225, 0.16);
+  border-radius: 18px;
+
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+
+.content-grid .panel-heading {
+  margin-bottom: 20px;
+}
+
+.content-grid .eyebrow {
+  color: #38BDF8;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+}
+
+.content-grid h2 {
+  color: #EDF6FF;
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.content-grid .panel-tag {
+  padding: 7px 10px;
+
+  color: #55C8FF;
+  background: rgba(22, 139, 255, 0.1);
+
+  border: 1px solid rgba(22, 139, 255, 0.2);
+  border-radius: 8px;
+
+  font-size: 9px;
+  font-weight: 600;
+}
+
+/* Weekly activity chart */
+
+.activity-chart {
+  gap: 13px;
+  height: 125px;
+}
+
+.activity-track {
+  overflow: hidden;
+  background: #1A2A40;
+  border-radius: 8px;
+}
+
+.activity-bar {
+  width: min(28px, 75%);
+  background: linear-gradient(
+    to top,
+    #1265D8,
+    #00D5FF
+  );
+  border-radius: 7px 7px 3px 3px;
+  transition: height 300ms ease;
+}
+
+.activity-bar.today {
+  background: linear-gradient(
+    to top,
+    #168BFF,
+    #54E5FF
+  );
+
+  box-shadow: 0 0 12px rgba(0, 213, 255, 0.25);
+}
+
+.activity-count {
+  color: #B8CBE0;
+  font-size: 10px;
+}
+
+.day-label {
+  color: #849BB4;
+  font-size: 10px;
+}
+
+.day-label.today-label {
+  color: #38BDF8;
+  font-weight: 700;
+}
+
+.chart-caption {
+  margin-top: 16px;
+  padding-top: 13px;
+
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+
+  color: #8298B0;
+  font-size: 10px;
+}
+
+/* Volume progress chart */
+
+.volume-progress-track {
+  overflow: hidden;
+  background: #1A2A40;
+  border-radius: 7px;
+}
+
+.volume-progress-bar {
+  background: linear-gradient(
+    to top,
+    #1557C0,
+    #38BDF8
+  );
+
+  border-radius: 7px 7px 2px 2px;
+  box-shadow: 0 0 10px rgba(22, 139, 255, 0.15);
+}
+
+.volume-progress-column strong {
+  color: #C7DFFF;
+  font-size: 10px;
+}
+
+.volume-progress-column span {
+  color: #8298B0;
+  font-size: 9px;
+}
+
+.progress-empty {
+  color: #8298B0;
+  background: rgba(22, 139, 255, 0.045);
+  border-radius: 12px;
+}
