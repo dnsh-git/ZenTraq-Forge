@@ -3694,3 +3694,129 @@ textarea::placeholder {
     padding: 13px;
   }
 }
+
+/* =========================================
+   LEVEL 4 FIX — WEEKLY ACTIVITY ALIGNMENT
+========================================= */
+
+.activity-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 380px;
+}
+
+.activity-panel .activity-chart {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-rows: 1fr;
+  align-items: end;
+
+  height: 165px;
+  gap: 10px;
+
+  margin-top: auto;
+  padding-top: 20px;
+}
+
+.activity-column {
+  height: 100%;
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.activity-count {
+  min-height: 12px;
+  color: #8FAAC6;
+  font-size: 10px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.activity-track {
+  width: 100%;
+  height: 105px;
+  min-height: 105px;
+
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+
+  background: linear-gradient(
+    to top,
+    rgba(22, 139, 255, 0.07),
+    transparent
+  );
+
+  border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 7px 7px 0 0;
+}
+
+.activity-bar {
+  width: min(27px, 75%);
+  min-height: 3px;
+
+  background: linear-gradient(
+    to top,
+    #1265D8,
+    #00D5FF
+  );
+
+  border-radius: 7px 7px 2px 2px;
+  box-shadow: 0 0 12px rgba(0, 213, 255, 0.16);
+}
+
+.activity-bar.today {
+  background: linear-gradient(
+    to top,
+    #168BFF,
+    #62E5FF
+  );
+
+  box-shadow: 0 0 15px rgba(0, 213, 255, 0.3);
+}
+
+.day-label {
+  display: block;
+  width: 100%;
+
+  color: #829BB5;
+  font-size: 10px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.day-label.today-label {
+  color: #38BDF8;
+  font-weight: 700;
+}
+
+.activity-panel .chart-caption {
+  margin-top: 17px;
+  padding-top: 13px;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+@media (max-width: 600px) {
+  .activity-panel {
+    min-height: 340px;
+  }
+
+  .activity-panel .activity-chart {
+    height: 155px;
+    gap: 6px;
+  }
+
+  .activity-track {
+    height: 95px;
+    min-height: 95px;
+  }
+
+  .day-label {
+    font-size: 9px;
+  }
+}
